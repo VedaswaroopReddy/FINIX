@@ -1,0 +1,7 @@
+# FINIX Core Engine requires ZERO external dependencies (pure Python standard library).
+# The packages below are optional for running the automated test suite and report compilation.
+
+pytest>=8.0.0
+python-docx>=0.8.11
+matplotlib>=3.8.0
+pillow>=10.0.0

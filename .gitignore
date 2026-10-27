@@ -1,0 +1,43 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.veritas/
+
+# Node dependencies (prototype versions)
+node_modules/
+versions/node_modules/
+.npm/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE / Editor configuration
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary & Archive files
+*.zip
+*.tar.gz
+scratch/
+scratch*
+
+# Office, PDF & Academic Artifacts
+*.docx
+*.pptx
+*.pdf
+*.dot
+
+# Operating System Files
+.DS_Store
+Thumbs.db

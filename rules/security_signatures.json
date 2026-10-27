@@ -1,0 +1,106 @@
+[
+  {
+    "id": "SEC-SQLI-01",
+    "name": "SQL Injection Tautology",
+    "pattern": ".*('|\"|%27)\\s*or\\s*('|\"|%27)?[0-9]+=[0-9]+.*",
+    "threat_level": "CRITICAL",
+    "category": "SQL Injection",
+    "description": "Detects classic tautology-based SQL injection (e.g., ' OR '1'='1) aiming to bypass authentication."
+  },
+  {
+    "id": "SEC-SQLI-02",
+    "name": "SQL UNION-Based Data Exfiltration",
+    "pattern": ".*union\\s+(all\\s+)?select.*",
+    "threat_level": "CRITICAL",
+    "category": "SQL Injection",
+    "description": "Flags UNION SELECT queries designed to extract schema or credentials from adjacent database tables."
+  },
+  {
+    "id": "SEC-XSS-01",
+    "name": "Cross-Site Scripting Tag Injection",
+    "pattern": ".*<script[^>]*>.*",
+    "threat_level": "HIGH",
+    "category": "Cross-Site Scripting",
+    "description": "Identifies inline HTML script tags injected into request parameters or headers."
+  },
+  {
+    "id": "SEC-XSS-02",
+    "name": "DOM Event Handler Injection",
+    "pattern": ".*(onload|onerror|onclick|onmouseover)\\s*=.*",
+    "threat_level": "HIGH",
+    "category": "Cross-Site Scripting",
+    "description": "Detects DOM-based JavaScript event handler attributes within untrusted user input."
+  },
+  {
+    "id": "SEC-TRAV-01",
+    "name": "Path Traversal Directory Climbing",
+    "pattern": ".*(\\.\\./|\\.\\.\\\\)+.*",
+    "threat_level": "CRITICAL",
+    "category": "Path Traversal",
+    "description": "Flags sequences of parent directory climbing (../ or ..\\) attempting to escape web roots."
+  },
+  {
+    "id": "SEC-CMD-01",
+    "name": "OS Command Chaining & Injection",
+    "pattern": ".*(;\\s*|&\\s*|\\|\\s*)(cat|ls|whoami|sh|bash|curl|wget)\\s+.*",
+    "threat_level": "CRITICAL",
+    "category": "Remote Code Execution",
+    "description": "Detects shell metacharacters followed by critical binary invocations."
+  },
+  {
+    "id": "SEC-AUTH-01",
+    "name": "Administrative Endpoint Probing",
+    "pattern": ".*(wp-admin|phpmyadmin|admin\\.php|console|actuator).*",
+    "threat_level": "MEDIUM",
+    "category": "Reconnaissance",
+    "description": "Identifies unauthorized reconnaissance sweeps probing sensitive backend administration portals."
+  },
+  {
+    "id": "SEC-CRED-01",
+    "name": "Sensitive File & Key Exfiltration",
+    "pattern": ".*(\\.env|id_rsa|/etc/passwd|web\\.config|\\.git/config).*",
+    "threat_level": "CRITICAL",
+    "category": "Information Disclosure",
+    "description": "Detects access requests targeting environment configurations, SSH keys, or system credentials."
+  },
+  {
+    "id": "SEC-MALW-01",
+    "name": "Executable Malware Payload Delivery",
+    "pattern": ".*\\.(exe|bin|sh|elf|bat)",
+    "threat_level": "HIGH",
+    "category": "Malware Staging",
+    "description": "Flags outbound or inbound traffic requesting executable binary or script payloads."
+  },
+  {
+    "id": "SEC-WEBSHELL-01",
+    "name": "Webshell & Backdoor File Access",
+    "pattern": ".*(c99|r57|wso|alfa|shell)\\.php.*",
+    "threat_level": "CRITICAL",
+    "category": "Persistence",
+    "description": "Detects requests interacting with known PHP webshell and backdoor command interfaces."
+  },
+  {
+    "id": "SEC-SSRF-01",
+    "name": "Cloud Metadata SSRF Probe",
+    "pattern": ".*169\\.254\\.169\\.254.*",
+    "threat_level": "CRITICAL",
+    "category": "Server-Side Request Forgery",
+    "description": "Identifies attempts to query cloud instance metadata service endpoints (AWS/GCP/Azure)."
+  },
+  {
+    "id": "SEC-PROTO-01",
+    "name": "Unencrypted Cleartext Transport",
+    "pattern": "http://.*",
+    "threat_level": "LOW",
+    "category": "Transport Security",
+    "description": "Flags cleartext HTTP URLs transmitting potentially unencrypted session identifiers."
+  },
+  {
+    "id": "SEC-LOG4J-01",
+    "name": "Log4Shell JNDI Injection Probe",
+    "pattern": ".*\\$\\{jndi:(ldap|rmi|dns)://.*",
+    "threat_level": "CRITICAL",
+    "category": "Remote Code Execution",
+    "description": "Detects CVE-2021-44228 Log4j JNDI lookup strings targeting logging subsystems."
+  }
+]
