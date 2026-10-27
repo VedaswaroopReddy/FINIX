@@ -446,8 +446,8 @@ class FinixRemasteredHandler(http.server.SimpleHTTPRequestHandler):
 def run_server(port: int = None):
     p = port or (int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else int(os.environ.get('PORT', PORT)))
     os.makedirs(DIRECTORY, exist_ok=True)
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("", p), FinixRemasteredHandler) as httpd:
+    http.server.ThreadingHTTPServer.allow_reuse_address = True
+    with http.server.ThreadingHTTPServer(("", p), FinixRemasteredHandler) as httpd:
         print("=" * 76, flush=True)
         print(f"🚀 FINIX is live at: http://localhost:{p}", flush=True)
         print("=" * 76, flush=True)
