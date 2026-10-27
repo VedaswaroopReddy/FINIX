@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Zero External Dependencies](https://img.shields.io/badge/dependencies-0%20(Pure%20Stdlib)-orange.svg)]()
 
-> A formally verified, linear-time regular expression and automata engine built from first principles in pure Python. Translates extended POSIX regular expressions through the classical theoretical hierarchy ($\text{Extended AST} \to \varepsilon\text{-NFA} \to \text{DFA} \to \text{Min-DFA}$) to provide mathematical immunity against Regular Expression Denial of Service (ReDoS) with automated Myhill-Nerode language equivalence proofs.
+> A formally verified, linear-time regular expression and automata engine built from first principles in pure Python. Translates extended POSIX regular expressions through the classical theoretical hierarchy: $\text{Extended AST} \to \varepsilon\text{-NFA} \to \text{Powerset DFA} \to \text{Canonical Min-DFA}$, providing mathematical immunity against Regular Expression Denial of Service (ReDoS) with automated Myhill-Nerode language equivalence proofs.
 
 ---
 
@@ -31,9 +31,12 @@
 Widely used industrial regular expression engines—including Python's `re`, PCRE, and JavaScript's V8—rely on **recursive backtracking (Depth-First Search)**. When exposed to ambiguous patterns containing nested quantifiers or overlapping alternation (e.g., `(a+)+b`), backtracking engines suffer from catastrophic exponential time complexity, $\mathcal{O}(2^n)$. An attacker can send an input of just 28 characters and completely stall an enterprise server—a vulnerability known as **Regular Expression Denial of Service (ReDoS)**.
 
 **FINIX removes this attack surface mathematically by construction.** Built entirely from first principles with **zero external regex dependencies**, FINIX translates regular expressions through the full theoretical automata hierarchy:
-$$\text{Extended AST} \xrightarrow[\text{Thompson}]{} \text{Inductive } \varepsilon\text{-NFA} \xrightarrow[\text{Rabin–Scott}]{} \text{Powerset DFA} \xrightarrow[\text{Hopcroft}]{} \text{Canonical Minimal DFA}$$
 
-Matching runs in **strictly linear worst-case time $\mathcal{O}(|w|)$** with **constant active memory $\mathcal{O}(1)$** per symbol, independent of pattern pathology.
+$$
+\text{Extended AST} \xrightarrow[\text{Thompson}]{} \text{Inductive } \varepsilon\text{-NFA} \xrightarrow[\text{Rabin-Scott}]{} \text{Powerset DFA} \xrightarrow[\text{Hopcroft}]{} \text{Canonical Minimal DFA}
+$$
+
+Matching runs in **strictly linear worst-case time**, $\mathcal{O}(|w|)$, with **constant active memory**, $\mathcal{O}(1)$ per symbol, independent of pattern pathology.
 
 ---
 
@@ -71,14 +74,14 @@ flowchart LR
 1. **Extended Lexer & Preprocessing (`parser.py`):**
    - Supports literals, wildcards (`.`), character classes (`[...]`, `[^...]`), and shorthand escapes (`\d`, `\w`, `\s`).
    - Injects explicit concatenation (`·`) and converts Infix to Postfix Reverse Polish Notation (RPN) via Dijkstra's Shunting-Yard algorithm.
-2. **Tier 1 — Inductive Thompson $\varepsilon$-NFA (`thompson.py`, `nfa.py`):**
+2. **Tier 1 — Inductive Thompson ε-NFA (`thompson.py`, `nfa.py`):**
    - Enforces Thompson invariants: single start state ($q_0$), single accept state with zero outgoing edges ($q_F$), and linear state bound ($|Q_N| \le 2|r|$).
    - Direct inductive loopback and bypass gadgets for `+` and `?` prevent $2^d$ sub-expression duplication.
 3. **Tier 2 — Rabin–Scott Powerset DFA (`dfa.py`):**
    - Determinizes non-deterministic state clouds over $\mathcal{P}(Q_N)$ using frozenset state interning.
-   - Compiles transitions into a contiguous 2D integer jump table `[Q_D][128]` for single-step $O(1)$ memory lookup.
+   - Compiles transitions into a contiguous 2D integer jump table `[Q_D][128]` for single-step $\mathcal{O}(1)$ memory lookup.
 4. **Tier 3 — Hopcroft Minimal DFA (`minimizer.py`):**
-   - Applies the smaller-half worklist invariant in $\mathcal{O}(|\Sigma| n \log n)$ time with precomputed inverse transitions $\delta^{-1}$.
+   - Applies the smaller-half worklist invariant in $\mathcal{O}(|\Sigma| \cdot n \log n)$ time with precomputed inverse transitions $\delta^{-1}$.
    - Renumbers quotient states via deterministic BFS to produce a unique canonical minimal automaton.
 
 ---
@@ -87,12 +90,12 @@ flowchart LR
 
 | Automata Metric / Operation | Theoretical Bound | Implementation Invariant |
 | :--- | :--- | :--- |
-| **NFA State Complexity** | $|Q_N| \le 2 \cdot |r|$ | Ken Thompson's Inductive Bound |
+| **NFA State Complexity** | $\vert Q_N \vert \le 2 \cdot \vert r \vert$ | Ken Thompson's Inductive Bound |
 | **NFA Out-Degree** | $\le 2$ edges per state | Binary alternation / bypass gadgets |
-| **NFA Simulation Latency** | $\mathcal{O}(\|w\| \cdot \|Q_N\|^2)$ | Parallel state-set tracking with $\varepsilon$-closure DFS |
-| **DFA Matching Latency** | $\mathcal{O}(\|w\|)$ strictly linear | Single table lookup per character (`curr = table[curr][code]`) |
+| **NFA Simulation Latency** | $\mathcal{O}(\vert w \vert \cdot \vert Q_N \vert^2)$ | Parallel state-set tracking with $\varepsilon$-closure DFS |
+| **DFA Matching Latency** | $\mathcal{O}(\vert w \vert)$ strictly linear | Single table lookup per character (`curr = table[curr][code]`) |
 | **DFA Active Memory Overhead** | $\mathcal{O}(1)$ constant space | Zero dynamic heap allocations during traversal |
-| **Hopcroft Minimization Time** | $\mathcal{O}(\|\Sigma\| \cdot n \log n)$ | Smaller-half partition refinement with worklist |
+| **Hopcroft Minimization Time** | $\mathcal{O}(\vert \Sigma \vert \cdot n \log n)$ | Smaller-half partition refinement with worklist |
 
 ---
 
@@ -102,12 +105,12 @@ On the canonical pathological nested quantifier pattern `(a+)+b` tested against 
 
 | Input Length ($n$) | Python `re` (Backtracking DFS) | FINIX Hopcroft Min-DFA (Jump Table) | Empirical Speedup |
 | :---: | :---: | :---: | :---: |
-| $n = 10$ | $0.11\text{ ms}$ | $0.003\text{ ms}$ | **$30.7\times$** |
-| $n = 15$ | $1.68\text{ ms}$ | $0.002\text{ ms}$ | **$733.8\times$** |
-| $n = 20$ | $57.62\text{ ms}$ | $0.007\text{ ms}$ | **$7,483.7\times$** |
-| $n = 24$ | **$1,048.61\text{ ms}$** *(> 1 sec)* | **$0.009\text{ ms}$** | **$107,001.6\times$** |
-| $n = 28$ | **TIMEOUT (> 5,000 ms — Stalls)** | **$0.001\text{ ms}$** | **$> 2,500,000\times$** |
-| **Extreme $n = 5,000$** | **CRASH / CPU EXHAUSTION** | **$0.305\text{ ms}$** | **Algorithmic Immunity** |
+| $n = 10$ | 0.11 ms | 0.003 ms | **30.7×** |
+| $n = 15$ | 1.68 ms | 0.002 ms | **733.8×** |
+| $n = 20$ | 57.62 ms | 0.007 ms | **7,483.7×** |
+| $n = 24$ | **1,048.61 ms** *(> 1 sec)* | **0.009 ms** | **107,001.6×** |
+| $n = 28$ | **TIMEOUT (> 5,000 ms — Stalls)** | **0.001 ms** | **> 2,500,000×** |
+| **Extreme $n = 5,000$** | **CRASH / CPU EXHAUSTION** | **0.305 ms** | **Algorithmic Immunity** |
 
 ---
 
@@ -135,7 +138,7 @@ python finix.py scan --log access.log
 
 ## 6. Automated Language Equivalence Theorem Prover
 
-Grounded in the **Myhill–Nerode theorem**, two regular expressions $r_1$ and $r_2$ describe the identical formal language ($L(r_1) \equiv L(r_2)$) if and only if their canonical minimal DFAs are structurally isomorphic.
+Grounded in the **Myhill–Nerode theorem**, two regular expressions, $r_1$ and $r_2$, describe the identical formal language, $L(r_1) \equiv L(r_2)$, if and only if their canonical minimal DFAs are structurally isomorphic.
 
 FINIX compiles both expressions, executes Hopcroft minimization, applies a deterministic BFS canonical relabeling pass, and tests graph isomorphism:
 
@@ -165,7 +168,7 @@ Launch the zero-dependency web interface:
 python server.py
 ```
 Open **[http://localhost:8000](http://localhost:8000)** to access:
-- **3-Tier Automata Workbench:** Live side-by-side rendering of Thompson $\varepsilon$-NFA, Powerset DFA, and Hopcroft Minimal DFA.
+- **3-Tier Automata Workbench:** Live side-by-side rendering of Thompson ε-NFA, Powerset DFA, and Hopcroft Minimal DFA.
 - **Synchronized Vector Stepper:** Step through arbitrary strings with glowing golden state illumination.
 - **Live ReDoS Profiler:** Run interactive performance benchmarks comparing Python's backtracking `re` vs. FINIX.
 - **SIEM Threat Scanner:** Inject live HTTP access log batches with real-time severity badges (`CRITICAL`, `HIGH`).
@@ -273,7 +276,7 @@ FINIX/
 ### Foundational Papers
 1. **Ken Thompson** (1968). *"Programming Techniques: Regular Expression Search Algorithm."* Communications of the ACM, 11(6), 419–422. DOI: [10.1145/363347.363387](https://doi.org/10.1145/363347.363387).
 2. **Michael O. Rabin & Dana Scott** (1959). *"Finite Automata and Their Decision Problems."* IBM Journal of Research and Development, 3(2), 114–125. DOI: [10.1147/rd.32.0114](https://doi.org/10.1147/rd.32.0114).
-3. **John E. Hopcroft** (1971). *"An $n \log n$ algorithm for minimizing states in a finite automaton."* In Theory of Machines and Computations, Academic Press, 189–196. DOI: [10.1016/B978-0-12-417750-5.50022-1](https://doi.org/10.1016/B978-0-12-417750-5.50022-1).
+3. **John E. Hopcroft** (1971). *"An n log n algorithm for minimizing states in a finite automaton."* In Theory of Machines and Computations, Academic Press, 189–196. DOI: [10.1016/B978-0-12-417750-5.50022-1](https://doi.org/10.1016/B978-0-12-417750-5.50022-1).
 4. **Russ Cox** (2007). *"Regular Expression Matching Can Be Simple And Fast (but is slow in Java, Perl, PHP, Python, ...)."* Software Engineering Research Series.
 5. **John E. Hopcroft, Rajeev Motwani, and Jeffrey D. Ullman** (2006). *Introduction to Automata Theory, Languages, and Computation* (3rd ed.). Pearson/Addison-Wesley.
 
