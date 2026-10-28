@@ -117,6 +117,7 @@ export default function App() {
   const [siemRuleError, setSiemRuleError] = useState<string | null>(null);
   const [selectedSiemRuleId, setSelectedSiemRuleId] = useState<string>('SEC-02');
   const [siemViewMode, setSiemViewMode] = useState<'RULE' | 'MASTER'>('RULE');
+  const [cleanSpineView, setCleanSpineView] = useState<boolean>(true);
 
   // Python Suite State
   const [selectedPythonFile, setSelectedPythonFile] = useState<string>('scanner.py');
@@ -241,13 +242,15 @@ export default function App() {
       powersetSvg: generateDfaSvg(compiled.powersetDfa, {
         activeStateIds: crossStageHighlights.powIds,
         showSubsets: true,
+        hideFallbackEdges: cleanSpineView,
       }),
       minimalSvg: generateDfaSvg(compiled.minimalDfa, {
         activeStateIds: crossStageHighlights.minIds,
         showSubsets: true,
+        hideFallbackEdges: cleanSpineView,
       }),
     };
-  }, [compiled, crossStageHighlights]);
+  }, [compiled, crossStageHighlights, cleanSpineView]);
 
   // SVGs for Dual Debugger at current step
   const debuggerSvgs = useMemo(() => {
@@ -260,6 +263,7 @@ export default function App() {
         minimalSvg: generateDfaSvg(compiled.minimalDfa, {
           activeStateIds: new Set([simulation.minimalInitialState]),
           showSubsets: true,
+          hideFallbackEdges: cleanSpineView,
         }),
       };
     }
@@ -279,9 +283,10 @@ export default function App() {
             ? { from: step.minimalBefore, to: step.minimalAfter }
             : null,
         showSubsets: true,
+        hideFallbackEdges: cleanSpineView,
       }),
     };
-  }, [compiled, simulation, debugStepIdx]);
+  }, [compiled, simulation, debugStepIdx, cleanSpineView]);
 
   // Equivalence Prover Computation
   const equivalenceState = useMemo(() => {
@@ -303,13 +308,19 @@ export default function App() {
   }, [masterSiem, selectedSiemRuleId]);
 
   const masterSiemSvg = useMemo(() => {
-    return generateDfaSvg(masterSiem.minimizedMasterDfa, { showSubsets: false });
-  }, [masterSiem]);
+    return generateDfaSvg(masterSiem.minimizedMasterDfa, {
+      showSubsets: false,
+      hideFallbackEdges: cleanSpineView,
+    });
+  }, [masterSiem, cleanSpineView]);
 
   const selectedSiemRuleSvg = useMemo(() => {
     if (!selectedSiemRule) return '';
-    return generateDfaSvg(selectedSiemRule.minimalDfa, { showSubsets: false });
-  }, [selectedSiemRule]);
+    return generateDfaSvg(selectedSiemRule.minimalDfa, {
+      showSubsets: false,
+      hideFallbackEdges: cleanSpineView,
+    });
+  }, [selectedSiemRule, cleanSpineView]);
 
   const activeSiemSvg = useMemo(() => {
     if (siemViewMode === 'RULE' && selectedSiemRuleSvg) {
@@ -684,29 +695,45 @@ export default function App() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg">
-                {(
-                  [
-                    { id: 'all4', label: 'Synchronized 4-Stage Grid' },
-                    { id: 'ast', label: '1. Algebraic AST' },
-                    { id: 'nfa', label: '2. Thompson ε-NFA' },
-                    { id: 'powerset', label: '3. Powerset DFA' },
-                    { id: 'minimal', label: '4. Minimal DFA' },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setPipelineStageMode(item.id)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
-                      pipelineStageMode === item.id
-                        ? 'bg-sky-500 text-slate-950 font-semibold'
-                        : 'text-slate-400 hover:text-slate-100'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg">
+                  {(
+                    [
+                      { id: 'all4', label: 'Synchronized 4-Stage Grid' },
+                      { id: 'ast', label: '1. Algebraic AST' },
+                      { id: 'nfa', label: '2. Thompson ε-NFA' },
+                      { id: 'powerset', label: '3. Powerset DFA' },
+                      { id: 'minimal', label: '4. Minimal DFA' },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setPipelineStageMode(item.id)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                        pipelineStageMode === item.id
+                          ? 'bg-sky-500 text-slate-950 font-semibold'
+                          : 'text-slate-400 hover:text-slate-100'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCleanSpineView((v) => !v)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                    cleanSpineView
+                      ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300'
+                      : 'bg-slate-900 border-slate-700 text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Clean Spine hides repetitive reset/fallback transitions back to the start state, revealing the core matching progression."
+                >
+                  <span className={`inline-block w-2 h-2 rounded-full ${cleanSpineView ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                  {cleanSpineView ? 'Clean Spine View' : 'Full Formal DFA'}
+                </button>
               </div>
             </div>
 
@@ -1492,13 +1519,13 @@ export default function App() {
                           <InteractiveSvgCanvas
                             title={`Minimal DFA M₁ for r₁ = ${equivRegex1}`}
                             subtitle={`|Q₁| = ${equivalenceState.proof.compiled1.minimalDfa.states.size} canonical states`}
-                            svgMarkup={generateDfaSvg(equivalenceState.proof.compiled1.minimalDfa)}
+                            svgMarkup={generateDfaSvg(equivalenceState.proof.compiled1.minimalDfa, { hideFallbackEdges: cleanSpineView })}
                             filenameSlug="equiv_m1"
                           />
                           <InteractiveSvgCanvas
                             title={`Minimal DFA M₂ for r₂ = ${equivRegex2}`}
                             subtitle={`|Q₂| = ${equivalenceState.proof.compiled2.minimalDfa.states.size} canonical states`}
-                            svgMarkup={generateDfaSvg(equivalenceState.proof.compiled2.minimalDfa)}
+                            svgMarkup={generateDfaSvg(equivalenceState.proof.compiled2.minimalDfa, { hideFallbackEdges: cleanSpineView })}
                             filenameSlug="equiv_m2"
                           />
                         </div>
@@ -1575,6 +1602,20 @@ export default function App() {
                       }`}
                     >
                       Unified Master DFA ({masterSiem.minimizedMasterDfa.states.size} Moore States)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCleanSpineView((v) => !v)}
+                      className={`ml-2 flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors border ${
+                        cleanSpineView
+                          ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300'
+                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                      }`}
+                      title="Clean Spine hides repetitive reset/fallback transitions back to the start state, keeping the progression pristine."
+                    >
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full ${cleanSpineView ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                      {cleanSpineView ? 'Clean Spine' : 'Full Formal DFA'}
                     </button>
                   </div>
 

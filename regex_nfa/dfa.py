@@ -316,10 +316,10 @@ class DFA:
         lines.append("}")
         return "\n".join(lines)
 
-    def generate_layered_svg(self, highlighted_state: Optional[int] = None) -> str:
+    def generate_layered_svg(self, highlighted_state: Optional[int] = None, hide_fallback_edges: bool = False) -> str:
         """Generates textbook-grade layered SVG diagram of the DFA."""
         from .visualizer import Visualizer
-        return Visualizer.generate_dfa_layered_svg(self, highlighted_state)
+        return Visualizer.generate_dfa_layered_svg(self, highlighted_state, hide_fallback_edges)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes DFA structure for REST API and web visualizer consumption."""

@@ -13,6 +13,25 @@ class Visualizer:
     """Provides formatting and export utilities for NFAs and simulation results."""
 
     @staticmethod
+    def format_compact_edge_label(symbols: List[str]) -> Tuple[str, str]:
+        """
+        Formats multi-symbol transitions into compact, high-legibility badges.
+        Long symbol sets or minterm complements collapse into 'other (N)'
+        with full expansion preserved for SVG <title> hover tooltips.
+        """
+        if not symbols:
+            return ("", "")
+        if len(symbols) == 1:
+            return (symbols[0], symbols[0])
+        joined = ", ".join(symbols)
+        if len(symbols) <= 3 and len(joined) <= 14:
+            return (joined, joined)
+        has_special = any("Σ" in s or "other" in s or "\\" in s or "[^" in s for s in symbols)
+        if has_special or len(symbols) >= 5:
+            return (f"other ({len(symbols)})", joined)
+        return (f"{symbols[0]},{symbols[1]}+{len(symbols) - 2}", joined)
+
+    @staticmethod
     def generate_transition_table(nfa: NFA) -> str:
         """
         Generates a formal ASCII State Transition Table formatted according to TOC conventions:
@@ -149,17 +168,21 @@ class Visualizer:
     def generate_layered_svg(nfa: NFA, highlighted_states: Set[int] = None) -> str:
         """
         Generates a publication-grade, self-contained SVG diagram of the ε-NFA
-        matching the clean textbook aesthetic of FINIX(1).
-        - Start state: soft indigo (#e0e7ff) with indigo border (#4338ca) and 'start' indicator
-        - Normal states: clean off-white (#f8fafc) with slate border (#334155)
-        - Accept state: soft mint (#dcfce7) with emerald border (#15803d) and double circle
-        - Edges: solid slate (#475569) for symbols, dashed grey (#94a3b8) for ε-transitions
-        - White label pills with high contrast slate typography
+        matching the clean textbook aesthetic of FINIX.
+        - Start state: soft indigo with indicator
+        - Normal states: clean slate with crisp borders
+        - Accept state: double green ring
+        - Edges: solid slate for symbols, dashed violet for ε-transitions
+        - Strict Perimeter Routing: backward and bypass edges route strictly outside node rows
+        - Source-Anchored Labeling (t=0.16) for backward loops eliminating mid-air collisions
         """
         import math
         highlighted = highlighted_states or set()
 
-        # 1. Assign columns via BFS distance from the start state
+        def _escape_xml(s: str) -> str:
+            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+        # 1. Assign columns via BFS distance from start state
         column: Dict[State, int] = {nfa.start_state: 0}
         queue = deque([nfa.start_state])
         while queue:
@@ -193,7 +216,7 @@ class Visualizer:
             for r_idx, st in enumerate(col_states):
                 row_idx[st] = r_idx
 
-        # 3. Geometric layout constants (matching textbook-grade layered standards)
+        # 3. Geometric layout constants
         NODE_RADIUS = 22
         COLUMN_GAP = 105
         ROW_GAP = 75
@@ -243,6 +266,8 @@ class Visualizer:
 
         edge_render_data = []
         back_edge_counter = 0
+        forward_bypass_counter = 0
+
         for (u, v), sym_labels in pair_edges.items():
             ux, uy, u_col = node_pos[u]
             vx, vy, v_col = node_pos[v]
@@ -251,13 +276,14 @@ class Visualizer:
             edge_color = "#c084fc" if is_eps else "#94a3b8"
             marker_id = "arrow-eps" if is_eps else "arrow-solid"
             dash_style = ' stroke-dasharray="4 3"' if is_eps else ''
-            label_text = ", ".join(sym_labels)
+            disp_label, full_label = Visualizer.format_compact_edge_label(sym_labels)
 
             if u == v:
                 # Self-loop: smooth cubic bezier arc above the state
                 top_y = uy - NODE_RADIUS
                 loop_r = 22.0
                 path_d = f"M {ux - 12.0:.1f} {top_y:.1f} C {ux - 32.0:.1f} {top_y - loop_r * 2.1:.1f}, {ux + 32.0:.1f} {top_y - loop_r * 2.1:.1f}, {ux + 12.0:.1f} {top_y:.1f}"
+                lbl_x = ux
                 lbl_y = top_y - loop_r * 1.9
                 min_y_bound = min(min_y_bound, lbl_y - 16.0)
                 edge_render_data.append({
@@ -265,58 +291,67 @@ class Visualizer:
                     "edge_color": edge_color,
                     "dash_style": dash_style,
                     "marker_id": marker_id,
-                    "lbl_x": ux,
+                    "lbl_x": lbl_x,
                     "lbl_y": lbl_y,
-                    "label_text": label_text,
+                    "label_text": disp_label,
+                    "full_label": full_label,
                     "is_eps": is_eps
                 })
                 continue
 
             is_backward = (v_col <= u_col)
             span = abs(v_col - u_col)
-            dx = vx - ux
-            dy = vy - uy
-            needs_curve = is_backward or span > 1
 
-            if not needs_curve:
+            if not is_backward and span == 1:
                 # Direct straight forward edge
                 x1, y1 = point_towards(ux, uy, vx, vy, NODE_RADIUS)
-                x2, y2 = point_towards(vx, vy, ux, uy, NODE_RADIUS + 4)
+                x2, y2 = point_towards(vx, vy, ux, uy, NODE_RADIUS + 4.0)
                 path_d = f"M {x1:.1f} {y1:.1f} L {x2:.1f} {y2:.1f}"
                 lbl_x = (x1 + x2) / 2.0
-                lbl_y = (y1 + y2) / 2.0 - 8
+                lbl_y = (y1 + y2) / 2.0 - 8.0
             elif is_backward:
-                # Loop-back edge: arc cleanly around outer perimeter with stagger
+                # Strict Perimeter Clearance for backward edges
                 arc_over = (vy <= mid_graph_y)
                 cx = (ux + vx) / 2.0
-                stagger = (back_edge_counter % 2) * 14.0
+                stagger = (back_edge_counter % 3) * 14.0
                 back_edge_counter += 1
                 if arc_over:
-                    cy = min_graph_y - NODE_RADIUS - 34.0 - span * 11.0 - stagger
+                    cy = min_graph_y - NODE_RADIUS - 36.0 - span * 9.0 - stagger
                 else:
-                    cy = max_graph_y + NODE_RADIUS + 34.0 + span * 11.0 + stagger
+                    cy = max_graph_y + NODE_RADIUS + 36.0 + span * 9.0 + stagger
 
                 min_y_bound = min(min_y_bound, cy - 26.0)
                 max_y_bound = max(max_y_bound, cy + 26.0)
 
                 x1, y1 = point_towards(ux, uy, cx, cy, NODE_RADIUS)
-                x2, y2 = point_towards(vx, vy, cx, cy, NODE_RADIUS + 4)
+                x2, y2 = point_towards(vx, vy, cx, cy, NODE_RADIUS + 4.0)
                 path_d = f"M {x1:.1f} {y1:.1f} Q {cx:.1f} {cy:.1f} {x2:.1f} {y2:.1f}"
-                lbl_x = 0.25 * x1 + 0.5 * cx + 0.25 * x2
-                lbl_y = 0.25 * y1 + 0.5 * cy + 0.25 * y2 + (10.0 if not arc_over else -8.0)
+
+                # Source-anchored label (t = 0.16) so each state's badge sits adjacent to its source
+                t = 0.16
+                lbl_x = (1 - t)**2 * x1 + 2 * (1 - t) * t * cx + t**2 * x2
+                lbl_y = (1 - t)**2 * y1 + 2 * (1 - t) * t * cy + t**2 * y2 + (-8.0 if arc_over else 8.0)
             else:
-                # Forward bypass (span > 1): gentle arc
+                # Forward bypass (span > 1): strict perimeter routing outside node rows
                 arc_over = (min(uy, vy) <= mid_graph_y)
                 cx = (ux + vx) / 2.0
-                cy = (uy + vy) / 2.0 + (-1 if arc_over else 1) * (26 + span * 10)
-                min_y_bound = min(min_y_bound, cy - 20)
-                max_y_bound = max(max_y_bound, cy + 20)
+                stagger = (forward_bypass_counter % 2) * 12.0
+                forward_bypass_counter += 1
+                if arc_over:
+                    cy = min_graph_y - NODE_RADIUS - 32.0 - span * 7.0 - stagger
+                    min_y_bound = min(min_y_bound, cy - 22.0)
+                else:
+                    cy = max_graph_y + NODE_RADIUS + 32.0 + span * 7.0 + stagger
+                    max_y_bound = max(max_y_bound, cy + 22.0)
 
                 x1, y1 = point_towards(ux, uy, cx, cy, NODE_RADIUS)
-                x2, y2 = point_towards(vx, vy, cx, cy, NODE_RADIUS + 4)
+                x2, y2 = point_towards(vx, vy, cx, cy, NODE_RADIUS + 4.0)
                 path_d = f"M {x1:.1f} {y1:.1f} Q {cx:.1f} {cy:.1f} {x2:.1f} {y2:.1f}"
-                lbl_x = 0.25 * x1 + 0.5 * cx + 0.25 * x2
-                lbl_y = 0.25 * y1 + 0.5 * cy + 0.25 * y2 + (-8 if arc_over else 10)
+
+                # Target-anchored label (t = 0.84)
+                t = 0.84
+                lbl_x = (1 - t)**2 * x1 + 2 * (1 - t) * t * cx + t**2 * x2
+                lbl_y = (1 - t)**2 * y1 + 2 * (1 - t) * t * cy + t**2 * y2 + (-8.0 if arc_over else 8.0)
 
             edge_render_data.append({
                 "path_d": path_d,
@@ -325,17 +360,17 @@ class Visualizer:
                 "marker_id": marker_id,
                 "lbl_x": lbl_x,
                 "lbl_y": lbl_y,
-                "label_text": label_text,
+                "label_text": disp_label,
+                "full_label": full_label,
                 "is_eps": is_eps
             })
 
         # Calculate exact bounding box so no text or arrow is ever clipped
         all_xs = [pos[0] for pos in node_pos.values()]
-        all_ys = [pos[1] for pos in node_pos.values()]
         min_x = min(all_xs) - NODE_RADIUS - 75.0
         max_x = max(all_xs) + NODE_RADIUS + 35.0
-        min_y = min(min_y_bound, min(all_ys) - NODE_RADIUS - 25.0)
-        max_y = max(max_y_bound, max(all_ys) + NODE_RADIUS + 25.0)
+        min_y = min(min_y_bound, min_graph_y - NODE_RADIUS - 25.0)
+        max_y = max(max_y_bound, max_graph_y + NODE_RADIUS + 25.0)
         view_w = max(max_x - min_x, 140.0)
         view_h = max(max_y - min_y, 90.0)
 
@@ -374,8 +409,9 @@ class Visualizer:
             font_style = 'italic' if ed["is_eps"] else 'normal'
             font_weight = '600'
             text_color = '#c084fc' if ed["is_eps"] else '#38bdf8'
+            title_tag = f'<title>Transition on: {_escape_xml(ed["full_label"])}</title>'
             svg_parts.append(
-                f'    <text x="{ed["lbl_x"]:.1f}" y="{ed["lbl_y"] + 3.5:.1f}" text-anchor="middle" fill="{text_color}" font-style="{font_style}" font-weight="{font_weight}" font-size="11" font-family="system-ui, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif">{ed["label_text"]}</text>'
+                f'    <text x="{ed["lbl_x"]:.1f}" y="{ed["lbl_y"] + 3.5:.1f}" text-anchor="middle" fill="{text_color}" font-style="{font_style}" font-weight="{font_weight}" font-size="11" font-family="system-ui, sans-serif">{title_tag}{_escape_xml(ed["label_text"])}</text>'
             )
 
         svg_parts.append('  </g>')
@@ -387,7 +423,7 @@ class Visualizer:
             f'    <line x1="{sx - NODE_RADIUS - 40:.1f}" y1="{sy:.1f}" x2="{sx - NODE_RADIUS - 4:.1f}" y2="{sy:.1f}" stroke="#38bdf8" stroke-width="2.0" marker-end="url(#arrow-start)" />'
         )
         svg_parts.append(
-            f'    <text x="{sx - NODE_RADIUS - 46:.1f}" y="{sy + 4:.1f}" text-anchor="end" fill="#38bdf8" font-size="11" font-weight="700" letter-spacing="0.04em" font-family="system-ui, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif">START</text>'
+            f'    <text x="{sx - NODE_RADIUS - 46:.1f}" y="{sy + 4:.1f}" text-anchor="end" fill="#38bdf8" font-size="11" font-weight="700" letter-spacing="0.04em" font-family="system-ui, sans-serif">START</text>'
         )
 
         # 7. Render states
@@ -430,7 +466,7 @@ class Visualizer:
                 )
 
             svg_parts.append(
-                f'    <text x="{x:.1f}" y="{y + 4.0:.1f}" text-anchor="middle" fill="{text_color}" font-size="12" font-weight="600" font-family="system-ui, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif">q{st.id}</text>'
+                f'    <text x="{x:.1f}" y="{y + 4.0:.1f}" text-anchor="middle" fill="{text_color}" font-size="12" font-weight="600" font-family="system-ui, sans-serif">q{st.id}</text>'
             )
 
         svg_parts.append('  </g>')
@@ -439,12 +475,25 @@ class Visualizer:
         return "\n".join(svg_parts)
 
     @staticmethod
-    def generate_dfa_layered_svg(dfa: Any, highlighted_state: Optional[int] = None) -> str:
+    def generate_dfa_layered_svg(dfa: Any, highlighted_state: Optional[int] = None, hide_fallback_edges: bool = False) -> str:
         """
         Generates a publication-grade SVG diagram of the Deterministic Finite Automaton (DFA).
         Displays canonical macro-state names (D0, D1, ...) alongside constituent NFA subsets ({q0, q1, ...}).
+        - Strict Perimeter Routing: backward loops and forward bypasses route outside node rows
+        - Source-Anchored Labeling (t=0.16): spreads backward loop labels with zero mid-air pile-ups
+        - Compact Badge Compacting: multi-symbol sets collapse into 'other (N)' with full tooltips
+        - Clean Spine Support: hide_fallback_edges suppresses repetitive resets to start state
         """
         import math
+
+        def _escape_xml(s: str) -> str:
+            return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+        def point_towards(x1: float, y1: float, x2: float, y2: float, dist: float) -> Tuple[float, float]:
+            dx = x2 - x1
+            dy = y2 - y1
+            d = math.hypot(dx, dy) or 1.0
+            return (x1 + (dx / d) * dist, y1 + (dy / d) * dist)
 
         start_id = dfa.start_state_id
         all_sids = sorted(list(dfa.states.keys()))
@@ -506,17 +555,23 @@ class Visualizer:
                 y = top + r_idx * ROW_GAP
                 node_pos[sid] = (x, y)
 
-        # Precompute edge bounds to prevent any curve clipping
+        # Precompute edge bounds
         all_xs = [pos[0] for pos in node_pos.values()]
         all_ys = [pos[1] for pos in node_pos.values()]
-        min_y_bound = min(all_ys) - NODE_RADIUS - 30.0
-        max_y_bound = max(all_ys) + NODE_RADIUS + 30.0
+        min_graph_y = min(all_ys) if all_ys else 0.0
+        max_graph_y = max(all_ys) if all_ys else float(height)
+        mid_graph_y = (min_graph_y + max_graph_y) / 2.0
+
+        min_y_bound = min_graph_y - NODE_RADIUS - 30.0
+        max_y_bound = max_graph_y + NODE_RADIUS + 30.0
 
         # Group edges and prepare rendering data
         grouped_edges = dfa.get_grouped_transitions()
         edge_render_data = []
 
         back_edge_counter = 0
+        forward_bypass_counter = 0
+
         for edge_idx, edge in enumerate(grouped_edges):
             src_id = int(edge["from"].replace("D", ""))
             tgt_id = int(edge["to"].replace("D", ""))
@@ -525,96 +580,97 @@ class Visualizer:
             if src_id not in node_pos or tgt_id not in node_pos:
                 continue
 
+            # Fallback suppression for Clean Spine view
+            if hide_fallback_edges and src_id != start_id and tgt_id == start_id:
+                continue
+
+            raw_syms = [s.strip() for s in label.split(",") if s.strip()]
+            disp_label, full_label = Visualizer.format_compact_edge_label(raw_syms)
+
             x1, y1 = node_pos[src_id]
             x2, y2 = node_pos[tgt_id]
 
             if src_id == tgt_id:
                 # Self Loop arc above the node
-                loop_r = 24
+                loop_r = 24.0
                 top_y = y1 - NODE_RADIUS
-                p1_x = x1 - 14
-                p2_x = x1 + 14
-                path_d = f"M {p1_x:.1f} {top_y:.1f} C {x1 - 36:.1f} {top_y - loop_r * 2.2:.1f}, {x1 + 36:.1f} {top_y - loop_r * 2.2:.1f}, {p2_x:.1f} {top_y:.1f}"
-                lbl_len = max(len(label) * 8.5 + 14.0, 24.0)
+                p1_x = x1 - 14.0
+                p2_x = x1 + 14.0
+                path_d = f"M {p1_x:.1f} {top_y:.1f} C {x1 - 36.0:.1f} {top_y - loop_r * 2.2:.1f}, {x1 + 36.0:.1f} {top_y - loop_r * 2.2:.1f}, {p2_x:.1f} {top_y:.1f}"
                 lbl_x = x1
-                lbl_y = top_y - loop_r * 2.2 + 3
-                min_y_bound = min(min_y_bound, lbl_y - 15)
+                lbl_y = top_y - loop_r * 2.2 + 3.0
+                min_y_bound = min(min_y_bound, lbl_y - 15.0)
 
                 edge_render_data.append({
                     "path_d": path_d,
                     "lbl_x": lbl_x,
                     "lbl_y": lbl_y,
-                    "lbl_len": lbl_len,
-                    "label": label
+                    "label": disp_label,
+                    "full_label": full_label
                 })
             else:
                 c1 = column.get(src_id, 0)
                 c2 = column.get(tgt_id, 0)
                 is_back = (c2 <= c1)
-
-                dx = x2 - x1
-                dy = y2 - y1
-                dist = math.hypot(dx, dy)
-                if dist < 1e-4:
-                    continue
+                span = abs(c2 - c1)
 
                 if is_back:
-                    # Curved arc beneath nodes with staggered sag and label positioning
+                    # Strict Perimeter Clearance for backward loops
                     col_diff = abs(c1 - c2)
-                    sag = 45 + col_diff * 34 + (back_edge_counter % 2) * 16
+                    arc_over = (y2 <= mid_graph_y)
+                    stagger = (back_edge_counter % 3) * 14.0
                     back_edge_counter += 1
-
-                    mid_x = (x1 + x2) / 2.0
-                    mid_y = max(y1, y2) + sag
-                    ctrl_x = mid_x
-                    ctrl_y = mid_y
-                    max_y_bound = max(max_y_bound, ctrl_y + 35)
-
-                    ctrl_dx = ctrl_x - x1
-                    ctrl_dy = ctrl_y - y1
-                    ctrl_dist = math.hypot(ctrl_dx, ctrl_dy)
-                    start_x = x1 + (ctrl_dx / ctrl_dist) * NODE_RADIUS
-                    start_y = y1 + (ctrl_dy / ctrl_dist) * NODE_RADIUS
-
-                    end_dx = ctrl_x - x2
-                    end_dy = ctrl_y - y2
-                    end_dist = math.hypot(end_dx, end_dy)
-                    end_x = x2 + (end_dx / end_dist) * (NODE_RADIUS + 3.0)
-                    end_y = y2 + (end_dy / end_dist) * (NODE_RADIUS + 3.0)
-
-                    path_d = f"M {start_x:.1f} {start_y:.1f} Q {ctrl_x:.1f} {ctrl_y:.1f} {end_x:.1f} {end_y:.1f}"
-                    # Stagger label along Bezier curve to eliminate badge overlapping
-                    t = 0.36 if (back_edge_counter % 2 == 1) else 0.64
-                    lbl_x = (1 - t)**2 * start_x + 2 * (1 - t) * t * ctrl_x + t**2 * end_x
-                    lbl_y = (1 - t)**2 * start_y + 2 * (1 - t) * t * ctrl_y + t**2 * end_y
-                else:
-                    ux = dx / dist
-                    uy = dy / dist
-                    start_x = x1 + ux * NODE_RADIUS
-                    start_y = y1 + uy * NODE_RADIUS
-                    end_x = x2 - ux * (NODE_RADIUS + 3.0)
-                    end_y = y2 - uy * (NODE_RADIUS + 3.0)
-
-                    if abs(c2 - c1) > 1 and abs(dy) < 10:
-                        # Arc over intermediate columns
-                        ctrl_x = (x1 + x2) / 2.0
-                        ctrl_y = y1 - 38
-                        min_y_bound = min(min_y_bound, ctrl_y - 20)
-                        path_d = f"M {start_x:.1f} {start_y:.1f} Q {ctrl_x:.1f} {ctrl_y:.1f} {end_x:.1f} {end_y:.1f}"
-                        lbl_x = ctrl_x
-                        lbl_y = ctrl_y + 8
+                    if arc_over:
+                        ctrl_y = min_graph_y - NODE_RADIUS - 38.0 - col_diff * 8.0 - stagger
+                        min_y_bound = min(min_y_bound, ctrl_y - 24.0)
                     else:
-                        path_d = f"M {start_x:.1f} {start_y:.1f} L {end_x:.1f} {end_y:.1f}"
-                        lbl_x = (start_x + end_x) / 2.0
-                        lbl_y = (start_y + end_y) / 2.0 - 9
+                        ctrl_y = max_graph_y + NODE_RADIUS + 38.0 + col_diff * 8.0 + stagger
+                        max_y_bound = max(max_y_bound, ctrl_y + 24.0)
 
-                lbl_len = max(len(label) * 8.5 + 14.0, 24.0)
+                    ctrl_x = (x1 + x2) / 2.0
+                    start_x, start_y = point_towards(x1, y1, ctrl_x, ctrl_y, NODE_RADIUS)
+                    end_x, end_y = point_towards(x2, y2, ctrl_x, ctrl_y, NODE_RADIUS + 3.0)
+                    path_d = f"M {start_x:.1f} {start_y:.1f} Q {ctrl_x:.1f} {ctrl_y:.1f} {end_x:.1f} {end_y:.1f}"
+
+                    # Source-anchored label (t = 0.16) so each state's label is adjacent to itself
+                    t = 0.16
+                    lbl_x = (1 - t)**2 * start_x + 2 * (1 - t) * t * ctrl_x + t**2 * end_x
+                    lbl_y = (1 - t)**2 * start_y + 2 * (1 - t) * t * ctrl_y + t**2 * end_y + (-8.0 if arc_over else 8.0)
+                elif span > 1:
+                    # Strict Perimeter Clearance for forward bypass edges
+                    arc_over = (min(y1, y2) <= mid_graph_y)
+                    stagger = (forward_bypass_counter % 2) * 12.0
+                    forward_bypass_counter += 1
+                    if arc_over:
+                        ctrl_y = min_graph_y - NODE_RADIUS - 34.0 - span * 7.0 - stagger
+                        min_y_bound = min(min_y_bound, ctrl_y - 24.0)
+                    else:
+                        ctrl_y = max_graph_y + NODE_RADIUS + 34.0 + span * 7.0 + stagger
+                        max_y_bound = max(max_y_bound, ctrl_y + 24.0)
+
+                    ctrl_x = (x1 + x2) / 2.0
+                    start_x, start_y = point_towards(x1, y1, ctrl_x, ctrl_y, NODE_RADIUS)
+                    end_x, end_y = point_towards(x2, y2, ctrl_x, ctrl_y, NODE_RADIUS + 3.0)
+                    path_d = f"M {start_x:.1f} {start_y:.1f} Q {ctrl_x:.1f} {ctrl_y:.1f} {end_x:.1f} {end_y:.1f}"
+
+                    # Target-anchored label (t = 0.84)
+                    t = 0.84
+                    lbl_x = (1 - t)**2 * start_x + 2 * (1 - t) * t * ctrl_x + t**2 * end_x
+                    lbl_y = (1 - t)**2 * start_y + 2 * (1 - t) * t * ctrl_y + t**2 * end_y + (-8.0 if arc_over else 8.0)
+                else:
+                    # Direct straight adjacent edge
+                    start_x, start_y = point_towards(x1, y1, x2, y2, NODE_RADIUS)
+                    end_x, end_y = point_towards(x2, y2, x1, y1, NODE_RADIUS + 3.0)
+                    path_d = f"M {start_x:.1f} {start_y:.1f} L {end_x:.1f} {end_y:.1f}"
+                    lbl_x = (start_x + end_x) / 2.0
+                    lbl_y = (start_y + end_y) / 2.0 - 9.0
+
                 edge_render_data.append({
                     "path_d": path_d,
                     "lbl_x": lbl_x,
                     "lbl_y": lbl_y,
-                    "lbl_len": lbl_len,
-                    "label": label
+                    "label": disp_label,
+                    "full_label": full_label
                 })
 
         # Calculate exact bounding box so no text or arrow is ever clipped
@@ -651,8 +707,9 @@ class Visualizer:
             svg_parts.append(
                 f'    <rect x="{ed["lbl_x"] - lbl_w/2:.1f}" y="{ed["lbl_y"] - 8:.1f}" width="{lbl_w:.1f}" height="15" rx="3" fill="#090d16" fill-opacity="0.88" />'
             )
+            title_tag = f'<title>Transition on: {_escape_xml(ed["full_label"])}</title>'
             svg_parts.append(
-                f'    <text x="{ed["lbl_x"]:.1f}" y="{ed["lbl_y"] + 3.5:.1f}" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="600" font-family="system-ui, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif">{ed["label"]}</text>'
+                f'    <text x="{ed["lbl_x"]:.1f}" y="{ed["lbl_y"] + 3.5:.1f}" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="600" font-family="system-ui, sans-serif">{title_tag}{_escape_xml(ed["label"])}</text>'
             )
 
         # 5. Start indicator
@@ -661,7 +718,7 @@ class Visualizer:
             f'    <line x1="{sx - NODE_RADIUS - 40:.1f}" y1="{sy:.1f}" x2="{sx - NODE_RADIUS - 4:.1f}" y2="{sy:.1f}" stroke="#38bdf8" stroke-width="2.0" marker-end="url(#dfa-arrow-start)" />'
         )
         svg_parts.append(
-            f'    <text x="{sx - NODE_RADIUS - 46:.1f}" y="{sy + 4:.1f}" text-anchor="end" fill="#38bdf8" font-size="11" font-weight="700" letter-spacing="0.04em" font-family="system-ui, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif">START</text>'
+            f'    <text x="{sx - NODE_RADIUS - 46:.1f}" y="{sy + 4:.1f}" text-anchor="end" fill="#38bdf8" font-size="11" font-weight="700" letter-spacing="0.04em" font-family="system-ui, sans-serif">START</text>'
         )
 
         # 6. Render DFA states
@@ -709,7 +766,7 @@ class Visualizer:
                 )
 
             svg_parts.append(
-                f'      <text x="{x:.1f}" y="{y + 4.5:.1f}" text-anchor="middle" fill="{text_color}" font-size="13" font-weight="600" font-family="system-ui, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif">D{sid}</text>'
+                f'      <text x="{x:.1f}" y="{y + 4.5:.1f}" text-anchor="middle" fill="{text_color}" font-size="13" font-weight="600" font-family="system-ui, sans-serif">D{sid}</text>'
             )
             svg_parts.append('    </g>')
 

@@ -34,6 +34,22 @@ function pointTowards(
   return [x1 + (dx / d) * dist, y1 + (dy / d) * dist];
 }
 
+export function formatCompactEdgeLabel(syms: string[]): { display: string; full: string } {
+  if (syms.length === 0) return { display: '', full: '' };
+  if (syms.length === 1) return { display: syms[0], full: syms[0] };
+  if (syms.length <= 3) {
+    const joined = syms.join(', ');
+    if (joined.length <= 14) return { display: joined, full: joined };
+  }
+  const hasSpecial = syms.some(
+    (s) => s.includes('Σ') || s.includes('other') || s.includes('\\') || s.includes('[^')
+  );
+  if (hasSpecial || syms.length >= 5) {
+    return { display: `other (${syms.length})`, full: syms.join(', ') };
+  }
+  return { display: `${syms.slice(0, 2).join(',')}+${syms.length - 2}`, full: syms.join(', ') };
+}
+
 // ============================================================================
 // 1. Abstract Syntax Tree (AST) Hierarchical SVG Renderer
 // ============================================================================
@@ -264,11 +280,13 @@ export function generateNfaSvg(nfa: CompiledNFA, highlights: NFAHighlightConfig 
     lblX: number;
     lblY: number;
     labelText: string;
+    fullLabel?: string;
     isEps: boolean;
   }
 
   const edgeRenders: EdgeRender[] = [];
   let backEdgeCounter = 0;
+  let forwardBypassCounter = 0;
 
   for (const { u, v, labels } of pairEdges.values()) {
     const uPos = nodePos.get(u)!;
@@ -277,7 +295,9 @@ export function generateNfaSvg(nfa: CompiledNFA, highlights: NFAHighlightConfig 
     const edgeColor = isEps ? '#c084fc' : '#94a3b8';
     const markerId = isEps ? 'nfa-arrow-eps' : 'nfa-arrow-solid';
     const dashStyle = isEps ? ' stroke-dasharray="4 3"' : '';
-    const labelText = labels.join(', ');
+    const compact = formatCompactEdgeLabel(labels);
+    const labelText = compact.display;
+    const fullLabel = compact.full;
 
     if (u === v) {
       const topY = uPos.y - NODE_RADIUS;
@@ -293,6 +313,7 @@ export function generateNfaSvg(nfa: CompiledNFA, highlights: NFAHighlightConfig 
         lblX: uPos.x,
         lblY,
         labelText,
+        fullLabel,
         isEps,
       });
       continue;
@@ -312,48 +333,64 @@ export function generateNfaSvg(nfa: CompiledNFA, highlights: NFAHighlightConfig 
         lblX: (x1 + x2) / 2,
         lblY: (y1 + y2) / 2 - 8,
         labelText,
+        fullLabel,
         isEps,
       });
     } else if (isBackward) {
       const arcOver = vPos.y <= midGraphY;
       const cx = (uPos.x + vPos.x) / 2;
-      const stagger = (backEdgeCounter++ % 2) * 14;
+      const stagger = (backEdgeCounter++ % 3) * 14;
       const cy = arcOver
-        ? minGraphY - NODE_RADIUS - 34 - span * 11 - stagger
-        : maxGraphY + NODE_RADIUS + 34 + span * 11 + stagger;
+        ? minGraphY - NODE_RADIUS - 36 - span * 9 - stagger
+        : maxGraphY + NODE_RADIUS + 36 + span * 9 + stagger;
 
       minYBound = Math.min(minYBound, cy - 26);
       maxYBound = Math.max(maxYBound, cy + 26);
 
       const [x1, y1] = pointTowards(uPos.x, uPos.y, cx, cy, NODE_RADIUS);
       const [x2, y2] = pointTowards(vPos.x, vPos.y, cx, cy, NODE_RADIUS + 4);
+      // Source-anchored label (t = 0.16) so each state's label is adjacent to itself, eliminating pile-ups!
+      const t = 0.16;
+      const lblX = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t ** 2 * x2;
+      const lblY = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * cy + t ** 2 * y2 + (arcOver ? -8 : 8);
+
       edgeRenders.push({
         pathD: `M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`,
         edgeColor,
         dashStyle,
         markerId,
-        lblX: 0.25 * x1 + 0.5 * cx + 0.25 * x2,
-        lblY: 0.25 * y1 + 0.5 * cy + 0.25 * y2 + (arcOver ? -8 : 10),
+        lblX,
+        lblY,
         labelText,
+        fullLabel,
         isEps,
       });
     } else {
       const arcOver = Math.min(uPos.y, vPos.y) <= midGraphY;
       const cx = (uPos.x + vPos.x) / 2;
-      const cy = (uPos.y + vPos.y) / 2 + (arcOver ? -1 : 1) * (28 + span * 10);
+      const stagger = (forwardBypassCounter++ % 2) * 12;
+      const cy = arcOver
+        ? minGraphY - NODE_RADIUS - 32 - span * 7 - stagger
+        : maxGraphY + NODE_RADIUS + 32 + span * 7 + stagger;
       minYBound = Math.min(minYBound, cy - 22);
       maxYBound = Math.max(maxYBound, cy + 22);
 
       const [x1, y1] = pointTowards(uPos.x, uPos.y, cx, cy, NODE_RADIUS);
       const [x2, y2] = pointTowards(vPos.x, vPos.y, cx, cy, NODE_RADIUS + 4);
+      // Target-anchored label (t = 0.84)
+      const t = 0.84;
+      const lblX = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t ** 2 * x2;
+      const lblY = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * cy + t ** 2 * y2 + (arcOver ? -8 : 8);
+
       edgeRenders.push({
         pathD: `M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`,
         edgeColor,
         dashStyle,
         markerId,
-        lblX: 0.25 * x1 + 0.5 * cx + 0.25 * x2,
-        lblY: 0.25 * y1 + 0.5 * cy + 0.25 * y2 + (arcOver ? -8 : 10),
+        lblX,
+        lblY,
         labelText,
+        fullLabel,
         isEps,
       });
     }
@@ -391,7 +428,7 @@ export function generateNfaSvg(nfa: CompiledNFA, highlights: NFAHighlightConfig 
     svgParts.push(
       `    <path d="${ed.pathD}" fill="none" stroke="${ed.edgeColor}" stroke-width="1.8"${ed.dashStyle} marker-end="url(#${ed.markerId})" />`,
       `    <rect x="${(ed.lblX - pillW / 2).toFixed(1)}" y="${(ed.lblY - 8).toFixed(1)}" width="${pillW.toFixed(1)}" height="15" rx="3" fill="#090d16" fill-opacity="0.9" />`,
-      `    <text x="${ed.lblX.toFixed(1)}" y="${(ed.lblY + 3.5).toFixed(1)}" text-anchor="middle" fill="${textColor}" font-style="${fontStyle}" font-weight="600" font-size="11" font-family="'JetBrains Mono', monospace">${escapeXml(ed.labelText)}</text>`
+      `    <text x="${ed.lblX.toFixed(1)}" y="${(ed.lblY + 3.5).toFixed(1)}" text-anchor="middle" fill="${textColor}" font-style="${fontStyle}" font-weight="600" font-size="11" font-family="'JetBrains Mono', monospace"><title>${escapeXml(ed.fullLabel || ed.labelText)}</title>${escapeXml(ed.labelText)}</text>`
     );
   }
 
@@ -476,6 +513,7 @@ export interface DFAHighlightConfig {
   activeStateIds?: Set<number>;
   activeTransition?: { from: number; to: number } | null;
   showSubsets?: boolean;
+  hideFallbackEdges?: boolean;
 }
 
 export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig = {}): string {
@@ -573,7 +611,14 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
   let maxYBound = Math.max(...allYs) + NODE_RADIUS + 42;
 
   // Group transitions between same (src, tgt)
-  const groupedEdges: { src: number; tgt: number; label: string }[] = [];
+  interface DfaGroupedEntry {
+    src: number;
+    tgt: number;
+    syms: string[];
+    label: string;
+  }
+
+  const groupedEdges: DfaGroupedEntry[] = [];
   for (const sid of allSids) {
     const st = dfa.states.get(sid)!;
     const byTarget = new Map<number, string[]>();
@@ -582,7 +627,7 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
       byTarget.get(tgt)!.push(sym);
     }
     for (const [tgt, syms] of byTarget.entries()) {
-      groupedEdges.push({ src: sid, tgt, label: syms.join(', ') });
+      groupedEdges.push({ src: sid, tgt, syms, label: syms.join(', ') });
     }
   }
 
@@ -591,21 +636,46 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
     lblX: number;
     lblY: number;
     label: string;
+    fullLabel: string;
     isHighlightedEdge: boolean;
+    stroke: string;
+    strokeW: string;
+    dashStyle: string;
+    marker: string;
   }
 
   const edgeRenders: DfaEdgeRender[] = [];
   let backEdgeCounter = 0;
+  let forwardBypassCounter = 0;
+  const hideFallback = highlights.hideFallbackEdges ?? false;
 
   for (const edge of groupedEdges) {
     const p1 = nodePos.get(edge.src);
     const p2 = nodePos.get(edge.tgt);
     if (!p1 || !p2) continue;
 
+    const c1 = stateEffectiveCol.get(edge.src) ?? 0;
+    const c2 = stateEffectiveCol.get(edge.tgt) ?? 0;
+    const isBack = c2 <= c1;
+
+    // Detect dense mismatch reset fallback to start state
+    const isFallbackToStart =
+      edge.src !== edge.tgt &&
+      edge.tgt === startId &&
+      c1 >= 1 &&
+      edge.syms.length >= 3;
+
+    if (hideFallback && isFallbackToStart) {
+      continue;
+    }
+
     const isHighlightedEdge =
       activeEdge !== null && activeEdge.from === edge.src && activeEdge.to === edge.tgt;
 
+    const compact = formatCompactEdgeLabel(edge.syms);
+
     if (edge.src === edge.tgt) {
+      // Self loop strictly above node
       const loopR = 24;
       const topY = p1.y - NODE_RADIUS;
       const pathD = `M ${(p1.x - 14).toFixed(1)} ${topY.toFixed(1)} C ${(p1.x - 36).toFixed(1)} ${(topY - loopR * 2.2).toFixed(1)}, ${(p1.x + 36).toFixed(1)} ${(topY - loopR * 2.2).toFixed(1)}, ${(p1.x + 14).toFixed(1)} ${topY.toFixed(1)}`;
@@ -615,41 +685,100 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
         pathD,
         lblX: p1.x,
         lblY,
-        label: edge.label,
+        label: compact.display,
+        fullLabel: compact.full,
         isHighlightedEdge,
+        stroke: isHighlightedEdge ? '#fbbf24' : '#94a3b8',
+        strokeW: isHighlightedEdge ? '2.6' : '1.8',
+        dashStyle: '',
+        marker: isHighlightedEdge ? 'dfa-arrow-gold' : 'dfa-arrow-solid',
+      });
+    } else if (isBack) {
+      // Backward loop: strictly route around OUTER PERIMETER (never through middle rows!)
+      const colDiff = Math.abs(c1 - c2);
+      const arcOver = p2.y <= midGraphY;
+      const stagger = (backEdgeCounter++ % 3) * 16;
+      const ctrlX = (p1.x + p2.x) / 2;
+      const ctrlY = arcOver
+        ? minGraphY - NODE_RADIUS - 38 - colDiff * 8 - stagger
+        : maxGraphY + NODE_RADIUS + 38 + colDiff * 8 + stagger;
+
+      if (arcOver) {
+        minYBound = Math.min(minYBound, ctrlY - 26);
+      } else {
+        maxYBound = Math.max(maxYBound, ctrlY + 26);
+      }
+
+      const [startX, startY] = pointTowards(p1.x, p1.y, ctrlX, ctrlY, NODE_RADIUS);
+      const [endX, endY] = pointTowards(p2.x, p2.y, ctrlX, ctrlY, NODE_RADIUS + 4);
+      const pathD = `M ${startX.toFixed(1)} ${startY.toFixed(1)} Q ${ctrlX.toFixed(1)} ${ctrlY.toFixed(1)} ${endX.toFixed(1)} ${endY.toFixed(1)}`;
+
+      // Source-anchored label (t = 0.16) so each state's label is adjacent to itself, eliminating pile-ups!
+      const t = 0.16;
+      const lblX = (1 - t) ** 2 * startX + 2 * (1 - t) * t * ctrlX + t ** 2 * endX;
+      const lblY = (1 - t) ** 2 * startY + 2 * (1 - t) * t * ctrlY + t ** 2 * endY + (arcOver ? -8 : 8);
+
+      const stroke = isHighlightedEdge ? '#fbbf24' : (isFallbackToStart ? '#64748b' : '#94a3b8');
+      const strokeW = isHighlightedEdge ? '2.6' : (isFallbackToStart ? '1.3' : '1.8');
+      const dashStyle = isFallbackToStart ? ' stroke-dasharray="3 3" stroke-opacity="0.6"' : '';
+      const marker = isHighlightedEdge ? 'dfa-arrow-gold' : 'dfa-arrow-solid';
+
+      edgeRenders.push({
+        pathD,
+        lblX,
+        lblY,
+        label: compact.display,
+        fullLabel: compact.full,
+        isHighlightedEdge,
+        stroke,
+        strokeW,
+        dashStyle,
+        marker,
       });
     } else {
-      const c1 = stateEffectiveCol.get(edge.src) ?? 0;
-      const c2 = stateEffectiveCol.get(edge.tgt) ?? 0;
-      const isBack = c2 <= c1;
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const dist = Math.hypot(dx, dy) || 1;
-
-      if (isBack) {
-        const colDiff = Math.abs(c1 - c2);
-        const sag = 48 + colDiff * 32 + (backEdgeCounter % 2) * 18;
-        backEdgeCounter++;
-
+      // Forward transition
+      const span = c2 - c1;
+      if (span > 1) {
+        // Forward bypass jumping multiple columns: arc cleanly outside perimeter!
+        const arcOver = Math.min(p1.y, p2.y) <= midGraphY;
+        const stagger = (forwardBypassCounter++ % 2) * 12;
         const ctrlX = (p1.x + p2.x) / 2;
-        const ctrlY = Math.max(p1.y, p2.y) + sag;
-        maxYBound = Math.max(maxYBound, ctrlY + 36);
+        const ctrlY = arcOver
+          ? minGraphY - NODE_RADIUS - 34 - span * 7 - stagger
+          : maxGraphY + NODE_RADIUS + 34 + span * 7 + stagger;
+
+        if (arcOver) {
+          minYBound = Math.min(minYBound, ctrlY - 24);
+        } else {
+          maxYBound = Math.max(maxYBound, ctrlY + 24);
+        }
 
         const [startX, startY] = pointTowards(p1.x, p1.y, ctrlX, ctrlY, NODE_RADIUS);
         const [endX, endY] = pointTowards(p2.x, p2.y, ctrlX, ctrlY, NODE_RADIUS + 4);
         const pathD = `M ${startX.toFixed(1)} ${startY.toFixed(1)} Q ${ctrlX.toFixed(1)} ${ctrlY.toFixed(1)} ${endX.toFixed(1)} ${endY.toFixed(1)}`;
-        const t = backEdgeCounter % 2 === 1 ? 0.38 : 0.62;
+
+        // Anchor near target (t = 0.84)
+        const t = 0.84;
         const lblX = (1 - t) ** 2 * startX + 2 * (1 - t) * t * ctrlX + t ** 2 * endX;
-        const lblY = (1 - t) ** 2 * startY + 2 * (1 - t) * t * ctrlY + t ** 2 * endY;
+        const lblY = (1 - t) ** 2 * startY + 2 * (1 - t) * t * ctrlY + t ** 2 * endY + (arcOver ? -8 : 8);
 
         edgeRenders.push({
           pathD,
           lblX,
           lblY,
-          label: edge.label,
+          label: compact.display,
+          fullLabel: compact.full,
           isHighlightedEdge,
+          stroke: isHighlightedEdge ? '#fbbf24' : '#94a3b8',
+          strokeW: isHighlightedEdge ? '2.6' : '1.8',
+          dashStyle: '',
+          marker: isHighlightedEdge ? 'dfa-arrow-gold' : 'dfa-arrow-solid',
         });
       } else {
+        // Direct adjacent forward edge
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.hypot(dx, dy) || 1;
         const ux = dx / dist;
         const uy = dy / dist;
         const startX = p1.x + ux * NODE_RADIUS;
@@ -657,26 +786,18 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
         const endX = p2.x - ux * (NODE_RADIUS + 4);
         const endY = p2.y - uy * (NODE_RADIUS + 4);
 
-        if (Math.abs(c2 - c1) > 1 && Math.abs(dy) < 12) {
-          const ctrlX = (p1.x + p2.x) / 2;
-          const ctrlY = p1.y - 42;
-          minYBound = Math.min(minYBound, ctrlY - 22);
-          edgeRenders.push({
-            pathD: `M ${startX.toFixed(1)} ${startY.toFixed(1)} Q ${ctrlX.toFixed(1)} ${ctrlY.toFixed(1)} ${endX.toFixed(1)} ${endY.toFixed(1)}`,
-            lblX: ctrlX,
-            lblY: ctrlY + 8,
-            label: edge.label,
-            isHighlightedEdge,
-          });
-        } else {
-          edgeRenders.push({
-            pathD: `M ${startX.toFixed(1)} ${startY.toFixed(1)} L ${endX.toFixed(1)} ${endY.toFixed(1)}`,
-            lblX: (startX + endX) / 2,
-            lblY: (startY + endY) / 2 - 9,
-            label: edge.label,
-            isHighlightedEdge,
-          });
-        }
+        edgeRenders.push({
+          pathD,
+          lblX,
+          lblY,
+          label: compact.display,
+          fullLabel: compact.full,
+          isHighlightedEdge,
+          stroke: isHighlightedEdge ? '#fbbf24' : '#94a3b8',
+          strokeW: isHighlightedEdge ? '2.6' : '1.8',
+          dashStyle: '',
+          marker: isHighlightedEdge ? 'dfa-arrow-gold' : 'dfa-arrow-solid',
+        });
       }
     }
   }
@@ -707,16 +828,13 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
   ];
 
   for (const ed of edgeRenders) {
-    const stroke = ed.isHighlightedEdge ? '#fbbf24' : '#94a3b8';
-    const strokeW = ed.isHighlightedEdge ? '2.6' : '1.8';
-    const marker = ed.isHighlightedEdge ? 'dfa-arrow-gold' : 'dfa-arrow-solid';
     const lblW = Math.max(18, ed.label.length * 7.2 + 8);
     const lblTextColor = ed.isHighlightedEdge ? '#fef08a' : '#38bdf8';
 
     svgParts.push(
-      `    <path d="${ed.pathD}" fill="none" stroke="${stroke}" stroke-width="${strokeW}" marker-end="url(#${marker})" />`,
+      `    <path d="${ed.pathD}" fill="none" stroke="${ed.stroke}" stroke-width="${ed.strokeW}"${ed.dashStyle} marker-end="url(#${ed.marker})" />`,
       `    <rect x="${(ed.lblX - lblW / 2).toFixed(1)}" y="${(ed.lblY - 8).toFixed(1)}" width="${lblW.toFixed(1)}" height="15" rx="3" fill="#090d16" fill-opacity="0.9" />`,
-      `    <text x="${ed.lblX.toFixed(1)}" y="${(ed.lblY + 3.5).toFixed(1)}" text-anchor="middle" fill="${lblTextColor}" font-size="11" font-weight="600" font-family="'JetBrains Mono', monospace">${escapeXml(ed.label)}</text>`
+      `    <text x="${ed.lblX.toFixed(1)}" y="${(ed.lblY + 3.5).toFixed(1)}" text-anchor="middle" fill="${lblTextColor}" font-size="11" font-weight="600" font-family="'JetBrains Mono', monospace"><title>Transition on: ${escapeXml(ed.fullLabel || ed.label)}</title>${escapeXml(ed.label)}</text>`
     );
   }
 
