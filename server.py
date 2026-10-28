@@ -23,20 +23,15 @@ from regex_nfa.parser import parse_regex, format_postfix, build_ast, tokenize, i
 from regex_nfa.thompson import compile_regex
 from regex_nfa.simulator import NFASimulator
 from regex_nfa.visualizer import Visualizer
-from regex_nfa.security import SecurityScanner
 from regex_nfa.nfa import EPSILON, WILDCARD
 from regex_nfa.dfa import nfa_to_dfa
-from regex_nfa.minimizer import (
-    compile_to_minimal_dfa,
-    are_equivalent_regexes
-)
-from regex_nfa.benchmarks import ReDoSBenchmarkSuite, BENCHMARK_TAXONOMIES
+from regex_nfa.minimizer import are_equivalent_regexes
+from regex_nfa.benchmarks import ReDoSBenchmarkSuite
 from regex_nfa.scanner import SIEMLogScanner
 
 PORT = 8000
 DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
 
-scanner = SecurityScanner()
 siem_scanner = SIEMLogScanner()
 benchmark_suite = ReDoSBenchmarkSuite(timeout_sec=1.5)
 
@@ -76,16 +71,12 @@ class FinixRemasteredHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_compile(req_json)
         elif path == '/api/simulate':
             self.handle_simulate(req_json)
-        elif path == '/api/minimize':
-            self.handle_minimize(req_json)
         elif path == '/api/equivalent':
             self.handle_equivalent(req_json)
         elif path == '/api/benchmark':
             self.handle_benchmark(req_json)
         elif path == '/api/siem/scan':
             self.handle_siem_scan(req_json)
-        elif path == '/api/security/scan':
-            self.handle_security_scan(req_json)
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -93,14 +84,8 @@ class FinixRemasteredHandler(http.server.SimpleHTTPRequestHandler):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
 
-        if path == '/api/security/rules':
-            self.handle_get_rules()
-        elif path == '/api/siem/rules':
+        if path == '/api/siem/rules':
             self.handle_get_siem_rules()
-        elif path == '/api/benchmark/taxonomies':
-            self.handle_get_benchmark_taxonomies()
-        elif path == '/api/self-tests':
-            self.handle_self_tests()
         else:
             super().do_GET()
 
@@ -259,21 +244,6 @@ class FinixRemasteredHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_json_response({"error": str(e)}, status=400)
 
-    def handle_minimize(self, req: Dict[str, Any]):
-        regex = req.get('regex', '')
-        if not regex:
-            self.send_json_response({"error": "Empty regular expression"}, status=400)
-            return
-
-        try:
-            min_dfa = compile_to_minimal_dfa(regex)
-            self.send_json_response({
-                "regex": regex,
-                "minimal_dfa": min_dfa.to_dict()
-            })
-        except Exception as e:
-            self.send_json_response({"error": str(e)}, status=400)
-
     def handle_equivalent(self, req: Dict[str, Any]):
         r1 = req.get('regex1', '')
         r2 = req.get('regex2', '')
@@ -322,124 +292,9 @@ class FinixRemasteredHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_json_response({"error": str(e)}, status=400)
 
-    def handle_security_scan(self, req: Dict[str, Any]):
-        payload = req.get('payload', '')
-        if not payload:
-            self.send_json_response({"error": "No payload provided"}, status=400)
-            return
-
-        report = scanner.scan(payload)
-        matches = []
-        for m in report.matches:
-            rule = m["rule"]
-            matches.append({
-                "id": rule.id,
-                "name": rule.name,
-                "pattern": rule.pattern,
-                "threat_level": rule.threat_level,
-                "category": rule.category,
-                "description": rule.description
-            })
-
-        self.send_json_response({
-            "target": report.target,
-            "is_flagged": report.is_flagged,
-            "highest_threat": report.highest_threat,
-            "matches": matches
-        })
-
-    def handle_get_rules(self):
-        rules_data = []
-        for r in scanner.rules:
-            rules_data.append({
-                "id": r.id,
-                "name": r.name,
-                "pattern": r.pattern,
-                "threat_level": r.threat_level,
-                "category": r.category,
-                "description": r.description
-            })
-        self.send_json_response({"rules": rules_data})
-
     def handle_get_siem_rules(self):
         self.send_json_response({
             "rules": [r.to_dict() for r in siem_scanner.rules]
-        })
-
-    def handle_get_benchmark_taxonomies(self):
-        cleaned_taxonomies = [
-            {
-                "id": t["id"],
-                "name": t["name"],
-                "pattern": t["pattern"],
-                "description": t["description"]
-            }
-            for t in BENCHMARK_TAXONOMIES
-        ]
-        self.send_json_response({
-            "taxonomies": cleaned_taxonomies
-        })
-
-    def handle_self_tests(self):
-        """Executes live automated self-tests and returns results."""
-        tests = [
-            ("Literal 'a' on 'a'", "a", "a", True),
-            ("Literal 'a' on 'b'", "a", "b", False),
-            ("Concat 'ab' on 'ab'", "ab", "ab", True),
-            ("Concat 'ab' on 'a'", "ab", "a", False),
-            ("Union 'a|b' on 'a'", "a|b", "a", True),
-            ("Union 'a|b' on 'b'", "a|b", "b", True),
-            ("Union 'a|b' on 'c'", "a|b", "c", False),
-            ("Star 'a*' on '' (ε)", "a*", "", True),
-            ("Star 'a*' on 'aaa'", "a*", "aaa", True),
-            ("Star 'a*' on 'b'", "a*", "b", False),
-            ("Concat 'a*b' on 'aaab'", "a*b", "aaab", True),
-            ("Concat 'a*b' on 'aaba'", "a*b", "aaba", False),
-            ("Classic '(a|b)*abb' on 'abb'", "(a|b)*abb", "abb", True),
-            ("Classic '(a|b)*abb' on 'aabb'", "(a|b)*abb", "aabb", True),
-            ("Classic '(a|b)*abb' on 'ababb'", "(a|b)*abb", "ababb", True),
-            ("Classic '(a|b)*abb' on 'ab'", "(a|b)*abb", "ab", False),
-            ("Wildcard 'a.c' on 'abc'", "a.c", "abc", True),
-            ("Wildcard 'a.c' on 'axc'", "a.c", "axc", True),
-            ("Wildcard '.*' on 'any text 123'", ".*", "any text 123", True),
-            ("Security URL '(http|https)://.*\\.exe' on 'https://malware.org/trojan.exe'", r"(http|https)://.*\.exe", "https://malware.org/trojan.exe", True),
-            ("Security URL '(http|https)://.*\\.exe' on 'https://site.org/index.html'", r"(http|https)://.*\.exe", "https://site.org/index.html", False),
-        ]
-
-        results = []
-        all_passed = True
-        for name, regex, test_str, expected in tests:
-            try:
-                nfa = compile_regex(regex)
-                sim = NFASimulator(nfa)
-                res = sim.matches(test_str)
-                passed = (res == expected)
-                if not passed:
-                    all_passed = False
-                results.append({
-                    "name": name,
-                    "regex": regex,
-                    "input": test_str if test_str != "" else "ε",
-                    "expected": "ACCEPT" if expected else "REJECT",
-                    "actual": "ACCEPT" if res else "REJECT",
-                    "passed": passed
-                })
-            except Exception as e:
-                all_passed = False
-                results.append({
-                    "name": name,
-                    "regex": regex,
-                    "input": test_str,
-                    "expected": "ACCEPT" if expected else "REJECT",
-                    "actual": f"ERROR: {e}",
-                    "passed": False
-                })
-
-        self.send_json_response({
-            "total": len(results),
-            "passed_count": sum(1 for r in results if r["passed"]),
-            "all_passed": all_passed,
-            "results": results
         })
 
 

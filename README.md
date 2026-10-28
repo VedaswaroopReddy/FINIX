@@ -173,7 +173,6 @@ Open **[http://localhost:8000](http://localhost:8000)** to access:
 - **Live ReDoS Profiler:** Run interactive performance benchmarks comparing Python's backtracking `re` vs. FINIX.
 - **SIEM Threat Scanner:** Inject live HTTP access log batches with real-time severity badges (`CRITICAL`, `HIGH`).
 - **Equivalence Prover:** Test formal regular expression algebraic identities.
-- **Self-Test Suite:** Run automated browser-level formal assertions.
 
 ---
 
