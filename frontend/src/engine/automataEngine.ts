@@ -1028,7 +1028,7 @@ export function buildThompsonNFAFromAST(ast: ASTNode, minterms: MintermClass[]):
         return { start: prefixFrag.start, accept: tailStar.accept };
       }
 
-      const optCount = maxR - minR;
+      const optCount = (maxR ?? minR) - minR;
       for (let i = 0; i < optCount; i++) {
         const optCopy = buildNode({
           id: `${node.id}_opt_${i}`,
@@ -1825,12 +1825,12 @@ export function simulateDualExecution(
       .filter((id) => !directSet.has(id))
       .sort((a, b) => a - b);
 
-    const nextPowerset =
+    const nextPowerset: number | null =
       currPowersetState !== null
         ? (powersetDfa.states.get(currPowersetState)?.charTransitions.get(ch) ?? null)
         : null;
 
-    const nextMinimal =
+    const nextMinimal: number | null =
       currMinimalState !== null
         ? (minimalDfa.states.get(currMinimalState)?.charTransitions.get(ch) ?? null)
         : null;

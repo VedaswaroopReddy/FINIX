@@ -607,8 +607,11 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
 
   const allXs = Array.from(nodePos.values()).map((p) => p.x);
   const allYs = Array.from(nodePos.values()).map((p) => p.y);
-  let minYBound = Math.min(...allYs) - NODE_RADIUS - 36;
-  let maxYBound = Math.max(...allYs) + NODE_RADIUS + 42;
+  const minGraphY = allYs.length > 0 ? Math.min(...allYs) : 0;
+  const maxGraphY = allYs.length > 0 ? Math.max(...allYs) : height;
+  const midGraphY = (minGraphY + maxGraphY) / 2;
+  let minYBound = minGraphY - NODE_RADIUS - 36;
+  let maxYBound = maxGraphY + NODE_RADIUS + 42;
 
   // Group transitions between same (src, tgt)
   interface DfaGroupedEntry {
@@ -785,6 +788,10 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
         const startY = p1.y + uy * NODE_RADIUS;
         const endX = p2.x - ux * (NODE_RADIUS + 4);
         const endY = p2.y - uy * (NODE_RADIUS + 4);
+
+        const pathD = `M ${startX.toFixed(1)} ${startY.toFixed(1)} L ${endX.toFixed(1)} ${endY.toFixed(1)}`;
+        const lblX = (startX + endX) / 2;
+        const lblY = (startY + endY) / 2 - 9;
 
         edgeRenders.push({
           pathD,
