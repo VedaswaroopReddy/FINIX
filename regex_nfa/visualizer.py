@@ -193,12 +193,12 @@ class Visualizer:
             for r_idx, st in enumerate(col_states):
                 row_idx[st] = r_idx
 
-        # 3. Geometric layout constants (matching FINIX(1) nfaLayout.ts)
-        NODE_RADIUS = 20
-        COLUMN_GAP = 110
-        ROW_GAP = 80
-        PADDING_X = 70
-        PADDING_Y = 50
+        # 3. Geometric layout constants (matching textbook-grade layered standards)
+        NODE_RADIUS = 24
+        COLUMN_GAP = 125
+        ROW_GAP = 90
+        PADDING_X = 90
+        PADDING_Y = 55
 
         max_rows = max(len(c) for c in cols) if cols else 1
         height = PADDING_Y * 2 + max(1, max_rows - 1) * ROW_GAP + NODE_RADIUS * 2
@@ -242,9 +242,9 @@ class Visualizer:
             vx, vy, v_col = node_pos[v]
 
             is_eps = (sym_labels == [EPSILON])
-            edge_color = "#94a3b8" if is_eps else "#475569"
+            edge_color = "#c084fc" if is_eps else "#94a3b8"
             marker_id = "arrow-eps" if is_eps else "arrow-solid"
-            dash_style = ' stroke-dasharray="4 3"' if is_eps else ''
+            dash_style = ' stroke-dasharray="5 3"' if is_eps else ''
             label_text = ", ".join(sym_labels)
 
             is_backward = (v_col <= u_col)
@@ -259,23 +259,23 @@ class Visualizer:
                 x2, y2 = point_towards(vx, vy, ux, uy, NODE_RADIUS + 4)
                 path_d = f"M {x1:.1f} {y1:.1f} L {x2:.1f} {y2:.1f}"
                 lbl_x = (x1 + x2) / 2.0
-                lbl_y = (y1 + y2) / 2.0 - 8
+                lbl_y = (y1 + y2) / 2.0 - 9
             else:
                 # Quadratic curve: backward edges bow downward (+), forward bypasses bow upward (-)
-                bow = (1 if is_backward else -1) * (35 + span * 14)
+                bow = (1 if is_backward else -1) * (38 + span * 15)
                 mid_x = (ux + vx) / 2.0
                 mid_y = (uy + vy) / 2.0
                 is_vertical = abs(dx) < 1.0
                 cx = mid_x + abs(bow) if is_vertical else mid_x
                 cy = mid_y if is_vertical else mid_y + bow
-                min_y_bound = min(min_y_bound, cy - 20)
-                max_y_bound = max(max_y_bound, cy + 20)
+                min_y_bound = min(min_y_bound, cy - 25)
+                max_y_bound = max(max_y_bound, cy + 25)
 
                 x1, y1 = point_towards(ux, uy, cx, cy, NODE_RADIUS)
                 x2, y2 = point_towards(vx, vy, cx, cy, NODE_RADIUS + 4)
                 path_d = f"M {x1:.1f} {y1:.1f} Q {cx:.1f} {cy:.1f} {x2:.1f} {y2:.1f}"
                 lbl_x = 0.25 * x1 + 0.5 * cx + 0.25 * x2
-                lbl_y = (0.25 * y1 + 0.5 * cy + 0.25 * y2) + (12 if cy > mid_y else -8)
+                lbl_y = (0.25 * y1 + 0.5 * cy + 0.25 * y2) + (13 if cy > mid_y else -9)
 
             edge_render_data.append({
                 "path_d": path_d,
@@ -288,26 +288,34 @@ class Visualizer:
                 "is_eps": is_eps
             })
 
-        view_y = min_y_bound
-        view_h = max_y_bound - min_y_bound
-        if view_y >= 0.0:
-            view_y = 0.0
-            view_h = height
+        # Calculate exact bounding box so no text or arrow is ever clipped
+        all_xs = [pos[0] for pos in node_pos.values()]
+        all_ys = [pos[1] for pos in node_pos.values()]
+        min_x = min(all_xs) - NODE_RADIUS - 85.0
+        max_x = max(all_xs) + NODE_RADIUS + 40.0
+        min_y = min(min_y_bound, min(all_ys) - NODE_RADIUS - 30.0)
+        max_y = max(max_y_bound, max(all_ys) + NODE_RADIUS + 30.0)
+        view_w = max(max_x - min_x, 140.0)
+        view_h = max(max_y - min_y, 90.0)
 
         svg_parts = [
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 {view_y:.1f} {width:.0f} {view_h:.0f}" width="{width:.0f}" height="{view_h:.0f}" class="nfa-layered-svg mx-auto block" role="img" aria-label="Generated ε-NFA" style="background-color: #ffffff; display: block; margin: 0 auto;">',
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{min_x:.1f} {min_y:.1f} {view_w:.1f} {view_h:.1f}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" class="nfa-layered-svg mx-auto block" role="img" aria-label="Generated ε-NFA" style="background: transparent; display: block; margin: 0 auto;">',
             '  <defs>',
+            '    <filter id="glow-gold" x="-30%" y="-30%" width="160%" height="160%">',
+            '      <feGaussianBlur stdDeviation="4" result="blur" />',
+            '      <feComposite in="SourceGraphic" in2="blur" operator="over" />',
+            '    </filter>',
             '    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">',
-            '      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />',
+            '      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" />',
             '    </marker>',
             '    <marker id="arrow-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">',
-            '      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />',
+            '      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" />',
             '    </marker>',
             '    <marker id="arrow-eps" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">',
-            '      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />',
+            '      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#c084fc" />',
             '    </marker>',
-            '    <marker id="arrow-start" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">',
-            '      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />',
+            '    <marker id="arrow-start" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">',
+            '      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#38bdf8" />',
             '    </marker>',
             '  </defs>',
             '  <g class="edges">'
@@ -316,17 +324,18 @@ class Visualizer:
         # 5. Render edges
         for ed in edge_render_data:
             svg_parts.append(
-                f'    <path d="{ed["path_d"]}" fill="none" stroke="{ed["edge_color"]}" stroke-width="1.5"{ed["dash_style"]} marker-end="url(#{ed["marker_id"]})" />'
+                f'    <path d="{ed["path_d"]}" fill="none" stroke="{ed["edge_color"]}" stroke-width="2.2"{ed["dash_style"]} marker-end="url(#{ed["marker_id"]})" />'
             )
-            pill_w = max(16.0, len(ed["label_text"]) * 8.0 + 8.0)
+            pill_w = max(20.0, len(ed["label_text"]) * 8.5 + 10.0)
+            pill_border = "#c084fc" if ed["is_eps"] else "#38bdf8"
             svg_parts.append(
-                f'    <rect x="{ed["lbl_x"] - pill_w/2:.1f}" y="{ed["lbl_y"] - 9:.1f}" width="{pill_w:.1f}" height="14" rx="3" fill="white" fill-opacity="0.95" />'
+                f'    <rect x="{ed["lbl_x"] - pill_w/2:.1f}" y="{ed["lbl_y"] - 10:.1f}" width="{pill_w:.1f}" height="17" rx="4" fill="#131b2e" stroke="{pill_border}" stroke-width="1.2" />'
             )
             font_style = 'italic' if ed["is_eps"] else 'normal'
-            font_weight = 'normal' if ed["is_eps"] else '600'
-            text_color = '#64748b' if ed["is_eps"] else '#0f172a'
+            font_weight = '700'
+            text_color = '#e9d5ff' if ed["is_eps"] else '#38bdf8'
             svg_parts.append(
-                f'    <text x="{ed["lbl_x"]:.1f}" y="{ed["lbl_y"] + 2:.1f}" text-anchor="middle" fill="{text_color}" font-style="{font_style}" font-weight="{font_weight}" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">{ed["label_text"]}</text>'
+                f'    <text x="{ed["lbl_x"]:.1f}" y="{ed["lbl_y"] + 3:.1f}" text-anchor="middle" fill="{text_color}" font-style="{font_style}" font-weight="{font_weight}" font-size="12" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">{ed["label_text"]}</text>'
             )
 
         svg_parts.append('  </g>')
@@ -335,10 +344,10 @@ class Visualizer:
         # 6. Start indicator arrow into q0 with no overlap
         sx, sy, _ = node_pos[nfa.start_state]
         svg_parts.append(
-            f'    <line x1="{sx - NODE_RADIUS - 40:.1f}" y1="{sy:.1f}" x2="{sx - NODE_RADIUS - 4:.1f}" y2="{sy:.1f}" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)" />'
+            f'    <line x1="{sx - NODE_RADIUS - 44:.1f}" y1="{sy:.1f}" x2="{sx - NODE_RADIUS - 4:.1f}" y2="{sy:.1f}" stroke="#38bdf8" stroke-width="2.2" marker-end="url(#arrow-start)" />'
         )
         svg_parts.append(
-            f'    <text x="{sx - NODE_RADIUS - 44:.1f}" y="{sy + 4:.1f}" text-anchor="end" fill="#64748b" font-size="11" font-weight="500" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif">start</text>'
+            f'    <text x="{sx - NODE_RADIUS - 50:.1f}" y="{sy + 4:.1f}" text-anchor="end" fill="#38bdf8" font-size="12" font-weight="700" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif">start</text>'
         )
 
         # 7. Render states
@@ -348,32 +357,40 @@ class Visualizer:
             is_active = (st.id in highlighted)
 
             if is_active:
-                fill_color = "#fde68a"
-                border_color = "#b45309"
-                stroke_w = 2.5
+                fill_color = "#78350f"
+                border_color = "#fbbf24"
+                text_color = "#fef08a"
+                stroke_w = 3.0
+                filter_attr = ' filter="url(#glow-gold)"'
             elif is_st_accept:
-                fill_color = "#dcfce7"
-                border_color = "#15803d"
-                stroke_w = 1.5
+                fill_color = "#064e3b"
+                border_color = "#22c55e"
+                text_color = "#86efac"
+                stroke_w = 2.5
+                filter_attr = ''
             elif is_st_start:
-                fill_color = "#e0e7ff"
-                border_color = "#4338ca"
-                stroke_w = 1.5
+                fill_color = "#1e3a8a"
+                border_color = "#38bdf8"
+                text_color = "#ffffff"
+                stroke_w = 2.5
+                filter_attr = ''
             else:
-                fill_color = "#f8fafc"
-                border_color = "#334155"
-                stroke_w = 1.5
+                fill_color = "#1e293b"
+                border_color = "#64748b"
+                text_color = "#f8fafc"
+                stroke_w = 2.0
+                filter_attr = ''
 
             svg_parts.append(
-                f'    <circle id="node-q{st.id}" data-state-id="{st.id}" data-is-start="{str(is_st_start).lower()}" data-is-accept="{str(is_st_accept).lower()}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}" fill="{fill_color}" stroke="{border_color}" stroke-width="{stroke_w}" />'
+                f'    <circle id="node-q{st.id}" data-state-id="{st.id}" data-is-start="{str(is_st_start).lower()}" data-is-accept="{str(is_st_accept).lower()}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}" fill="{fill_color}" stroke="{border_color}" stroke-width="{stroke_w}"{filter_attr} />'
             )
             if is_st_accept:
                 svg_parts.append(
-                    f'    <circle id="inner-q{st.id}" data-state-id="{st.id}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS - 4}" fill="none" stroke="{border_color}" stroke-width="1.5" />'
+                    f'    <circle id="inner-q{st.id}" data-state-id="{st.id}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS - 4}" fill="none" stroke="#4ade80" stroke-width="1.8" />'
                 )
 
             svg_parts.append(
-                f'    <text x="{x:.1f}" y="{y + 4:.1f}" text-anchor="middle" fill="#0f172a" font-size="12" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">q{st.id}</text>'
+                f'    <text x="{x:.1f}" y="{y + 4.5:.1f}" text-anchor="middle" fill="{text_color}" font-size="13" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">q{st.id}</text>'
             )
 
         svg_parts.append('  </g>')
@@ -430,10 +447,10 @@ class Visualizer:
                 row_idx[sid] = r_idx
 
         # 3. Geometric layout constants
-        NODE_RADIUS = 24
-        COLUMN_GAP = 140
-        ROW_GAP = 95
-        PADDING_X = 80
+        NODE_RADIUS = 28
+        COLUMN_GAP = 145
+        ROW_GAP = 100
+        PADDING_X = 90
         PADDING_Y = 60
 
         max_rows = max(len(c) for c in cols) if cols else 1
@@ -458,18 +475,28 @@ class Visualizer:
             for t in dfa.get_grouped_transitions() if t["from"] != t["to"]
         )
 
-        min_y = -35 if has_self_loops else -10
-        view_height = height + (85 if has_back_edges else 40)
-        view_width = width + 50
+        # Calculate exact bounding box so no text or arrow is ever clipped
+        all_xs = [pos[0] for pos in node_pos.values()]
+        all_ys = [pos[1] for pos in node_pos.values()]
+        min_x = min(all_xs) - NODE_RADIUS - 85.0
+        max_x = max(all_xs) + NODE_RADIUS + 40.0
+        min_y = min(all_ys) - NODE_RADIUS - (55.0 if has_self_loops else 30.0)
+        max_y = max(all_ys) + NODE_RADIUS + (75.0 if has_back_edges else 30.0)
+        view_w = max(max_x - min_x, 150.0)
+        view_h = max(max_y - min_y, 90.0)
 
         svg_parts = [
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 {min_y} {view_width:.1f} {view_height:.1f}" class="w-full h-auto select-none font-sans" style="background:#ffffff; border-radius: 8px;">',
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{min_x:.1f} {min_y:.1f} {view_w:.1f} {view_h:.1f}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" class="w-full h-auto select-none font-sans" style="background: transparent; display: block; margin: 0 auto;">',
             '  <defs>',
-            '    <marker id="dfa-arrow-solid" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">',
-            '      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#334155" />',
+            '    <filter id="glow-gold-dfa" x="-30%" y="-30%" width="160%" height="160%">',
+            '      <feGaussianBlur stdDeviation="4" result="blur" />',
+            '      <feComposite in="SourceGraphic" in2="blur" operator="over" />',
+            '    </filter>',
+            '    <marker id="dfa-arrow-solid" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">',
+            '      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" />',
             '    </marker>',
-            '    <marker id="dfa-arrow-start" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">',
-            '      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4338ca" />',
+            '    <marker id="dfa-arrow-start" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">',
+            '      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#38bdf8" />',
             '    </marker>',
             '  </defs>',
             '  <g id="dfa-scene">'
@@ -490,22 +517,22 @@ class Visualizer:
 
             if src_id == tgt_id:
                 # Self Loop arc
-                loop_r = 18
+                loop_r = 22
                 top_y = y1 - NODE_RADIUS
-                p1_x = x1 - 10
-                p2_x = x1 + 10
-                path_d = f"M {p1_x:.1f} {top_y:.1f} C {x1 - 25:.1f} {top_y - loop_r * 2:.1f}, {x1 + 25:.1f} {top_y - loop_r * 2:.1f}, {p2_x:.1f} {top_y:.1f}"
+                p1_x = x1 - 12
+                p2_x = x1 + 12
+                path_d = f"M {p1_x:.1f} {top_y:.1f} C {x1 - 32:.1f} {top_y - loop_r * 2:.1f}, {x1 + 32:.1f} {top_y - loop_r * 2:.1f}, {p2_x:.1f} {top_y:.1f}"
                 svg_parts.append(
-                    f'    <path d="{path_d}" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#dfa-arrow-solid)" />'
+                    f'    <path d="{path_d}" fill="none" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#dfa-arrow-solid)" />'
                 )
-                lbl_len = max(len(label) * 7.0 + 10.0, 20.0)
+                lbl_len = max(len(label) * 8.0 + 12.0, 22.0)
                 lbl_x = x1
                 lbl_y = top_y - loop_r * 2 + 3
                 svg_parts.append(
-                    f'    <rect x="{lbl_x - lbl_len/2:.1f}" y="{lbl_y - 8:.1f}" width="{lbl_len:.1f}" height="16" rx="4" fill="rgba(255,255,255,0.95)" stroke="#cbd5e1" stroke-width="0.8" />'
+                    f'    <rect x="{lbl_x - lbl_len/2:.1f}" y="{lbl_y - 9:.1f}" width="{lbl_len:.1f}" height="17" rx="4" fill="#131b2e" stroke="#38bdf8" stroke-width="1.2" />'
                 )
                 svg_parts.append(
-                    f'    <text x="{lbl_x:.1f}" y="{lbl_y + 4:.1f}" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="600" font-family="ui-monospace, monospace">{label}</text>'
+                    f'    <text x="{lbl_x:.1f}" y="{lbl_y + 4:.1f}" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700" font-family="ui-monospace, monospace">{label}</text>'
                 )
             else:
                 c1 = column.get(src_id, 0)
@@ -521,7 +548,7 @@ class Visualizer:
                 if is_back:
                     # Curved arc beneath nodes
                     col_diff = abs(c1 - c2)
-                    sag = 45 + col_diff * 18
+                    sag = 48 + col_diff * 18
                     mid_x = (x1 + x2) / 2.0
                     mid_y = max(y1, y2) + sag
                     ctrl_x = mid_x
@@ -555,33 +582,33 @@ class Visualizer:
                     if abs(c2 - c1) > 1 and abs(dy) < 10:
                         # Arc over intermediate columns
                         ctrl_x = (x1 + x2) / 2.0
-                        ctrl_y = y1 - 32
+                        ctrl_y = y1 - 34
                         path_d = f"M {start_x:.1f} {start_y:.1f} Q {ctrl_x:.1f} {ctrl_y:.1f} {end_x:.1f} {end_y:.1f}"
                         lbl_x = ctrl_x
                         lbl_y = ctrl_y + 8
                     else:
                         path_d = f"M {start_x:.1f} {start_y:.1f} L {end_x:.1f} {end_y:.1f}"
                         lbl_x = (start_x + end_x) / 2.0
-                        lbl_y = (start_y + end_y) / 2.0 - 8
+                        lbl_y = (start_y + end_y) / 2.0 - 9
 
                 svg_parts.append(
-                    f'    <path d="{path_d}" fill="none" stroke="#334155" stroke-width="1.6" marker-end="url(#dfa-arrow-solid)" />'
+                    f'    <path d="{path_d}" fill="none" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#dfa-arrow-solid)" />'
                 )
-                lbl_len = max(len(label) * 7.0 + 10.0, 20.0)
+                lbl_len = max(len(label) * 8.0 + 12.0, 22.0)
                 svg_parts.append(
-                    f'    <rect x="{lbl_x - lbl_len/2:.1f}" y="{lbl_y - 8:.1f}" width="{lbl_len:.1f}" height="16" rx="4" fill="rgba(255,255,255,0.95)" stroke="#cbd5e1" stroke-width="0.8" />'
+                    f'    <rect x="{lbl_x - lbl_len/2:.1f}" y="{lbl_y - 9:.1f}" width="{lbl_len:.1f}" height="17" rx="4" fill="#131b2e" stroke="#38bdf8" stroke-width="1.2" />'
                 )
                 svg_parts.append(
-                    f'    <text x="{lbl_x:.1f}" y="{lbl_y + 4:.1f}" text-anchor="middle" fill="#1e293b" font-size="11" font-weight="600" font-family="ui-monospace, monospace">{label}</text>'
+                    f'    <text x="{lbl_x:.1f}" y="{lbl_y + 4:.1f}" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700" font-family="ui-monospace, monospace">{label}</text>'
                 )
 
         # 5. Start indicator
         sx, sy = node_pos[start_id]
         svg_parts.append(
-            f'    <line x1="{sx - NODE_RADIUS - 38:.1f}" y1="{sy:.1f}" x2="{sx - NODE_RADIUS - 2:.1f}" y2="{sy:.1f}" stroke="#4338ca" stroke-width="2" marker-end="url(#dfa-arrow-start)" />'
+            f'    <line x1="{sx - NODE_RADIUS - 44:.1f}" y1="{sy:.1f}" x2="{sx - NODE_RADIUS - 4:.1f}" y2="{sy:.1f}" stroke="#38bdf8" stroke-width="2.2" marker-end="url(#dfa-arrow-start)" />'
         )
         svg_parts.append(
-            f'    <text x="{sx - NODE_RADIUS - 44:.1f}" y="{sy + 4:.1f}" text-anchor="end" fill="#4338ca" font-size="11" font-weight="600">start</text>'
+            f'    <text x="{sx - NODE_RADIUS - 50:.1f}" y="{sy + 4.5:.1f}" text-anchor="end" fill="#38bdf8" font-size="12" font-weight="700">start</text>'
         )
 
         # 6. Render DFA states
@@ -592,41 +619,53 @@ class Visualizer:
             is_active = (sid == highlighted_state)
 
             if is_active:
-                fill_color = "#fde68a"
-                border_color = "#b45309"
-                stroke_w = 2.5
+                fill_color = "#78350f"
+                border_color = "#fbbf24"
+                text_color = "#fef08a"
+                sub_color = "#fef9c3"
+                stroke_w = 3.0
+                filter_attr = ' filter="url(#glow-gold-dfa)"'
             elif is_st_accept:
-                fill_color = "#dcfce7"
-                border_color = "#15803d"
-                stroke_w = 1.6
+                fill_color = "#064e3b"
+                border_color = "#22c55e"
+                text_color = "#86efac"
+                sub_color = "#bbf7d0"
+                stroke_w = 2.5
+                filter_attr = ''
             elif is_st_start:
-                fill_color = "#e0e7ff"
-                border_color = "#4338ca"
-                stroke_w = 1.6
+                fill_color = "#1e3a8a"
+                border_color = "#38bdf8"
+                text_color = "#ffffff"
+                sub_color = "#93c5fd"
+                stroke_w = 2.5
+                filter_attr = ''
             else:
-                fill_color = "#f8fafc"
-                border_color = "#334155"
-                stroke_w = 1.5
+                fill_color = "#1e293b"
+                border_color = "#64748b"
+                text_color = "#f8fafc"
+                sub_color = "#94a3b8"
+                stroke_w = 2.0
+                filter_attr = ''
 
             tooltip = f"DFA State D{sid}: {state.nfa_set_str}"
             svg_parts.append(
                 f'    <g id="dfa-group-D{sid}" class="cursor-pointer" data-dfa-state-id="{sid}" data-nfa-subset="{state.nfa_set_str}">'
             )
             svg_parts.append(
-                f'      <circle id="dfa-node-D{sid}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}" fill="{fill_color}" stroke="{border_color}" stroke-width="{stroke_w}"><title>{tooltip}</title></circle>'
+                f'      <circle id="dfa-node-D{sid}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}" fill="{fill_color}" stroke="{border_color}" stroke-width="{stroke_w}"{filter_attr}><title>{tooltip}</title></circle>'
             )
             if is_st_accept:
                 svg_parts.append(
-                    f'      <circle id="dfa-inner-D{sid}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS - 4}" fill="none" stroke="{border_color}" stroke-width="1.5" />'
+                    f'      <circle id="dfa-inner-D{sid}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS - 4}" fill="none" stroke="#4ade80" stroke-width="1.8" />'
                 )
 
             svg_parts.append(
-                f'      <text x="{x:.1f}" y="{y - 2:.1f}" text-anchor="middle" fill="#0f172a" font-size="12" font-weight="700" font-family="ui-monospace, monospace">D{sid}</text>'
+                f'      <text x="{x:.1f}" y="{y - 2:.1f}" text-anchor="middle" fill="{text_color}" font-size="13" font-weight="700" font-family="ui-monospace, monospace">D{sid}</text>'
             )
             # Small constituent NFA count / sublabel
             sub_lbl = f"{len(state.nfa_states)} q"
             svg_parts.append(
-                f'      <text x="{x:.1f}" y="{y + 11:.1f}" text-anchor="middle" fill="#64748b" font-size="9" font-weight="500">{sub_lbl}</text>'
+                f'      <text x="{x:.1f}" y="{y + 12:.1f}" text-anchor="middle" fill="{sub_color}" font-size="10" font-weight="600">{sub_lbl}</text>'
             )
             svg_parts.append('    </g>')
 

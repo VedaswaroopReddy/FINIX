@@ -360,18 +360,65 @@
     }
 
     .nfa-canvas-card {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 1.25rem 1rem;
-      overflow-x: auto;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 1rem;
+      overflow: hidden;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5), 0 4px 14px rgba(0, 0, 0, 0.3);
       text-align: center;
       position: relative;
-      min-height: 280px;
+      min-height: 380px;
+      height: 420px;
       display: flex;
       align-items: center;
       justify-content: center;
+      cursor: grab;
+      user-select: none;
+    }
+
+    .nfa-canvas-card svg {
+      width: 100% !important;
+      height: 100% !important;
+      max-height: 100% !important;
+      display: block;
+      margin: 0 auto;
+      pointer-events: auto;
+      transition: transform 0.08s ease-out;
+    }
+
+    .canvas-toolbar {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 5px;
+      z-index: 10;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+    }
+
+    .canvas-toolbar button {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      transition: all 0.15s ease;
+    }
+
+    .canvas-toolbar button:hover {
+      background: #1e293b;
+      color: #38bdf8;
     }
 
     .nfa-legend {
@@ -382,9 +429,9 @@
       margin-top: 0.65rem;
       padding: 0.5rem 0.85rem;
       font-size: 0.8rem;
-      color: #475569;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
+      color: #94a3b8;
+      background: #0d1322;
+      border: 1px solid #1e293b;
       border-radius: 6px;
     }
 
@@ -399,8 +446,8 @@
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: #e0e7ff;
-      border: 1.5px solid #4338ca;
+      background: #1e3a8a;
+      border: 1.8px solid #38bdf8;
       display: inline-block;
     }
 
@@ -408,22 +455,22 @@
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: #dcfce7;
-      border: 2.5px double #15803d;
+      background: #064e3b;
+      border: 2px double #22c55e;
       display: inline-block;
     }
 
     .legend-line-eps {
       width: 20px;
       height: 0;
-      border-top: 2px dashed #9333ea;
+      border-top: 2px dashed #c084fc;
       display: inline-block;
     }
 
     .legend-line-sym {
       width: 20px;
       height: 0;
-      border-top: 2px solid #2563eb;
+      border-top: 2px solid #94a3b8;
       display: inline-block;
     }
 
@@ -697,9 +744,9 @@
         <div id="automata-view-grid" class="grid-3" style="margin-top: 1rem;">
           <!-- Column 1: NFA -->
           <div id="col-view-nfa" style="display: flex; flex-direction: column;">
-            <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
-              <span><i class="fa-solid fa-diagram-project" style="color: #4338ca;"></i> Thompson ε-NFA</span>
-              <span id="nfa-states-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: #e0e7ff; color: #3730a3; font-weight: 600;">14 states</span>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #f8fafc; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
+              <span><i class="fa-solid fa-diagram-project" style="color: #818cf8;"></i> Thompson ε-NFA</span>
+              <span id="nfa-states-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4); font-weight: 600;">14 states</span>
             </div>
             <div id="svg-container" class="nfa-canvas-card" style="flex: 1;"></div>
             <div class="nfa-legend" style="margin-top: 0.5rem;">
@@ -711,9 +758,9 @@
 
           <!-- Column 2: Powerset DFA -->
           <div id="col-view-dfa" style="display: flex; flex-direction: column;">
-            <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
-              <span><i class="fa-solid fa-circle-nodes" style="color: #0284c7;"></i> Rabin-Scott Powerset DFA</span>
-              <span id="dfa-states-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: #dbeafe; color: #1e40af; font-weight: 600;">5 states · 0 ε</span>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #f8fafc; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
+              <span><i class="fa-solid fa-circle-nodes" style="color: #38bdf8;"></i> Rabin-Scott Powerset DFA</span>
+              <span id="dfa-states-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4); font-weight: 600;">5 states · 0 ε</span>
             </div>
             <div id="dfa-svg-container" class="nfa-canvas-card" style="flex: 1;"></div>
             <div class="nfa-legend" style="margin-top: 0.5rem;">
@@ -725,15 +772,15 @@
 
           <!-- Column 3: Minimal DFA -->
           <div id="col-view-min" style="display: flex; flex-direction: column;">
-            <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
-              <span><i class="fa-solid fa-gem" style="color: #10b981;"></i> Hopcroft Minimal DFA</span>
-              <span id="min-dfa-states-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: #dcfce7; color: #166534; font-weight: 600;">4 states (Canonical)</span>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #f8fafc; margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
+              <span><i class="fa-solid fa-gem" style="color: #22c55e;"></i> Hopcroft Minimal DFA</span>
+              <span id="min-dfa-states-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 9999px; background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.4); font-weight: 600;">4 states (Canonical)</span>
             </div>
             <div id="min-dfa-svg-container" class="nfa-canvas-card" style="flex: 1;"></div>
             <div class="nfa-legend" style="margin-top: 0.5rem;">
               <span class="nfa-legend-item"><span class="legend-dot-start"></span> start (D0)</span>
               <span class="nfa-legend-item"><span class="legend-dot-accept"></span> accept</span>
-              <span class="nfa-legend-item"><span style="width: 14px; height: 14px; border-radius: 50%; background: #dcfce7; border: 1.5px solid #16a34a; display: inline-block;"></span> Myhill-Nerode Quotient</span>
+              <span class="nfa-legend-item"><span style="width: 14px; height: 14px; border-radius: 50%; background: #064e3b; border: 1.5px solid #22c55e; display: inline-block;"></span> Myhill-Nerode Quotient</span>
             </div>
           </div>
         </div>
@@ -916,6 +963,130 @@
     let currentStepIdx = 0;
     let playInterval = null;
 
+    // Pan & Zoom Manager for High-Visibility Canvases
+    const canvasTransforms = {};
+
+    function setCanvasSvg(containerId, svgCode) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      if (!canvasTransforms[containerId]) {
+        canvasTransforms[containerId] = { scale: 1.0, x: 0, y: 0, isDragging: false, startX: 0, startY: 0 };
+      }
+
+      let toolbar = container.querySelector('.canvas-toolbar');
+      if (!toolbar) {
+        toolbar = document.createElement('div');
+        toolbar.className = 'canvas-toolbar';
+        toolbar.innerHTML = `
+          <button type="button" onclick="zoomCanvas('${containerId}', 1.2)" title="Zoom In"><i class="fa-solid fa-plus"></i></button>
+          <button type="button" onclick="zoomCanvas('${containerId}', 0.8)" title="Zoom Out"><i class="fa-solid fa-minus"></i></button>
+          <button type="button" onclick="resetCanvas('${containerId}')" title="Fit to View"><i class="fa-solid fa-arrows-to-eye"></i></button>
+          <button type="button" onclick="toggleCanvasExpand('${containerId}')" title="Toggle Fullscreen"><i class="fa-solid fa-expand"></i></button>
+        `;
+      }
+
+      let viewport = container.querySelector('.svg-viewport');
+      if (!viewport) {
+        viewport = document.createElement('div');
+        viewport.className = 'svg-viewport';
+        viewport.style.width = '100%';
+        viewport.style.height = '100%';
+        viewport.style.display = 'flex';
+        viewport.style.alignItems = 'center';
+        viewport.style.justifyContent = 'center';
+        viewport.style.transition = 'transform 0.08s ease-out';
+        setupPanZoom(container, viewport, containerId);
+      }
+
+      container.innerHTML = '';
+      container.appendChild(toolbar);
+      viewport.innerHTML = svgCode;
+      container.appendChild(viewport);
+      applyCanvasTransform(containerId);
+    }
+
+    function setupPanZoom(container, viewport, containerId) {
+      container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const st = canvasTransforms[containerId] || { scale: 1.0, x: 0, y: 0 };
+        const factor = e.deltaY < 0 ? 1.15 : 0.87;
+        st.scale = Math.min(Math.max(st.scale * factor, 0.35), 4.5);
+        canvasTransforms[containerId] = st;
+        applyCanvasTransform(containerId);
+      }, { passive: false });
+
+      container.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.canvas-toolbar')) return;
+        const st = canvasTransforms[containerId] || { scale: 1.0, x: 0, y: 0 };
+        st.isDragging = true;
+        st.startX = e.clientX - st.x;
+        st.startY = e.clientY - st.y;
+        canvasTransforms[containerId] = st;
+        container.style.cursor = 'grabbing';
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        const st = canvasTransforms[containerId];
+        if (!st || !st.isDragging) return;
+        st.x = e.clientX - st.startX;
+        st.y = e.clientY - st.startY;
+        applyCanvasTransform(containerId);
+      });
+
+      window.addEventListener('mouseup', () => {
+        const st = canvasTransforms[containerId];
+        if (st && st.isDragging) {
+          st.isDragging = false;
+          container.style.cursor = 'grab';
+        }
+      });
+    }
+
+    function zoomCanvas(containerId, factor) {
+      const st = canvasTransforms[containerId] || { scale: 1.0, x: 0, y: 0 };
+      st.scale = Math.min(Math.max(st.scale * factor, 0.35), 4.5);
+      canvasTransforms[containerId] = st;
+      applyCanvasTransform(containerId);
+    }
+
+    function resetCanvas(containerId) {
+      canvasTransforms[containerId] = { scale: 1.0, x: 0, y: 0, isDragging: false };
+      applyCanvasTransform(containerId);
+    }
+
+    function toggleCanvasExpand(containerId) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.classList.toggle('canvas-expanded');
+      if (container.classList.contains('canvas-expanded')) {
+        container.style.position = 'fixed';
+        container.style.top = '4vh';
+        container.style.left = '4vw';
+        container.style.width = '92vw';
+        container.style.height = '92vh';
+        container.style.zIndex = '99999';
+        container.style.boxShadow = '0 25px 60px rgba(0,0,0,0.85)';
+      } else {
+        container.style.position = 'relative';
+        container.style.top = '';
+        container.style.left = '';
+        container.style.width = '';
+        container.style.height = '';
+        container.style.zIndex = '';
+        container.style.boxShadow = '';
+      }
+    }
+
+    function applyCanvasTransform(containerId) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      const viewport = container.querySelector('.svg-viewport');
+      if (!viewport) return;
+      const st = canvasTransforms[containerId] || { scale: 1.0, x: 0, y: 0 };
+      viewport.style.transform = `translate(${st.x}px, ${st.y}px) scale(${st.scale})`;
+    }
+
     function switchTab(tabId) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
@@ -1050,20 +1221,20 @@
           currentDfaData = data.dfa;
           currentDfaSvg = data.dfa.svg || '';
           renderDfaTransitionTable('dfa-transition-table-container', data.dfa.alphabet || [], data.dfa.table || [], 'DFA State');
-          document.getElementById('dfa-svg-container').innerHTML = currentDfaSvg;
-          document.getElementById('sim-dfa-svg-container').innerHTML = currentDfaSvg;
+          setCanvasSvg('dfa-svg-container', currentDfaSvg);
+          setCanvasSvg('sim-dfa-svg-container', currentDfaSvg);
         }
 
         if (data.minimal_dfa) {
           currentMinDfaSvg = data.minimal_dfa.svg || '';
           renderDfaTransitionTable('min-dfa-transition-table-container', data.minimal_dfa.alphabet || [], data.minimal_dfa.table || [], 'Min State');
-          document.getElementById('min-dfa-svg-container').innerHTML = currentMinDfaSvg;
-          document.getElementById('sim-min-svg-container').innerHTML = currentMinDfaSvg;
+          setCanvasSvg('min-dfa-svg-container', currentMinDfaSvg);
+          setCanvasSvg('sim-min-svg-container', currentMinDfaSvg);
         }
 
         currentSvg = data.svg || '';
-        document.getElementById('svg-container').innerHTML = currentSvg;
-        document.getElementById('sim-svg-container').innerHTML = currentSvg;
+        setCanvasSvg('svg-container', currentSvg);
+        setCanvasSvg('sim-svg-container', currentSvg);
         renderLatexMath();
       } catch (err) {
         console.error(err);
@@ -1196,9 +1367,9 @@
 
       // Reset SVGs if at Step 0
       if (currentStepIdx === 0) {
-        document.getElementById('sim-svg-container').innerHTML = currentSvg;
-        document.getElementById('sim-dfa-svg-container').innerHTML = currentDfaSvg;
-        document.getElementById('sim-min-svg-container').innerHTML = currentMinDfaSvg;
+        setCanvasSvg('sim-svg-container', currentSvg);
+        setCanvasSvg('sim-dfa-svg-container', currentDfaSvg);
+        setCanvasSvg('sim-min-svg-container', currentMinDfaSvg);
         return;
       }
 
@@ -1208,18 +1379,19 @@
       const mStep = currentMinTraceSteps[activeIdx];
 
       // Reset SVGs to baseline before highlighting active state
-      document.getElementById('sim-svg-container').innerHTML = currentSvg;
-      document.getElementById('sim-dfa-svg-container').innerHTML = currentDfaSvg;
-      document.getElementById('sim-min-svg-container').innerHTML = currentMinDfaSvg;
+      setCanvasSvg('sim-svg-container', currentSvg);
+      setCanvasSvg('sim-dfa-svg-container', currentDfaSvg);
+      setCanvasSvg('sim-min-svg-container', currentMinDfaSvg);
 
-      // Highlight NFA active states
+      // Highlight NFA active states with rich golden amber glow
       if (nStep && nStep.after_states) {
         nStep.after_states.forEach(sName => {
           const el = document.querySelector(`#sim-svg-container #node-${sName}`);
           if (el) {
-            el.setAttribute('fill', '#fde68a');
-            el.setAttribute('stroke', '#b45309');
+            el.setAttribute('fill', '#78350f');
+            el.setAttribute('stroke', '#fbbf24');
             el.setAttribute('stroke-width', '3.5');
+            el.setAttribute('filter', 'url(#glow-gold)');
           }
         });
       }
@@ -1230,9 +1402,10 @@
         if (dId) {
           const el = document.querySelector(`#sim-dfa-svg-container #dfa-node-${dId}`);
           if (el) {
-            el.setAttribute('fill', '#fde68a');
-            el.setAttribute('stroke', '#b45309');
+            el.setAttribute('fill', '#78350f');
+            el.setAttribute('stroke', '#fbbf24');
             el.setAttribute('stroke-width', '3.5');
+            el.setAttribute('filter', 'url(#glow-gold-dfa)');
           }
         }
       }
@@ -1243,9 +1416,10 @@
         if (mId) {
           const el = document.querySelector(`#sim-min-svg-container #dfa-node-${mId}`);
           if (el) {
-            el.setAttribute('fill', '#fde68a');
-            el.setAttribute('stroke', '#b45309');
+            el.setAttribute('fill', '#78350f');
+            el.setAttribute('stroke', '#fbbf24');
             el.setAttribute('stroke-width', '3.5');
+            el.setAttribute('filter', 'url(#glow-gold-dfa)');
           }
         }
       }
