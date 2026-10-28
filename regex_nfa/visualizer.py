@@ -194,11 +194,11 @@ class Visualizer:
                 row_idx[st] = r_idx
 
         # 3. Geometric layout constants (matching textbook-grade layered standards)
-        NODE_RADIUS = 24
-        COLUMN_GAP = 125
-        ROW_GAP = 90
-        PADDING_X = 90
-        PADDING_Y = 55
+        NODE_RADIUS = 28
+        COLUMN_GAP = 135
+        ROW_GAP = 95
+        PADDING_X = 95
+        PADDING_Y = 60
 
         max_rows = max(len(c) for c in cols) if cols else 1
         height = PADDING_Y * 2 + max(1, max_rows - 1) * ROW_GAP + NODE_RADIUS * 2
@@ -366,31 +366,31 @@ class Visualizer:
                 fill_color = "#064e3b"
                 border_color = "#22c55e"
                 text_color = "#86efac"
-                stroke_w = 2.5
+                stroke_w = 2.8
                 filter_attr = ''
             elif is_st_start:
                 fill_color = "#1e3a8a"
                 border_color = "#38bdf8"
                 text_color = "#ffffff"
-                stroke_w = 2.5
+                stroke_w = 2.8
                 filter_attr = ''
             else:
-                fill_color = "#1e293b"
-                border_color = "#64748b"
-                text_color = "#f8fafc"
-                stroke_w = 2.0
+                fill_color = "#111827"
+                border_color = "#818cf8"
+                text_color = "#ffffff"
+                stroke_w = 2.5
                 filter_attr = ''
 
             svg_parts.append(
-                f'    <circle id="node-q{st.id}" data-state-id="{st.id}" data-is-start="{str(is_st_start).lower()}" data-is-accept="{str(is_st_accept).lower()}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}" fill="{fill_color}" stroke="{border_color}" stroke-width="{stroke_w}"{filter_attr} />'
+                f'    <circle id="node-q{st.id}" data-state-id="{st.id}" data-is-start="{str(is_st_start).lower()}" data-is-accept="{str(is_st_accept).lower()}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}" fill="{fill_color}" stroke="{border_color}" stroke-width="{stroke_w}"{filter_attr} style="fill: {fill_color} !important; stroke: {border_color} !important;" />'
             )
             if is_st_accept:
                 svg_parts.append(
-                    f'    <circle id="inner-q{st.id}" data-state-id="{st.id}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS - 4}" fill="none" stroke="#4ade80" stroke-width="1.8" />'
+                    f'    <circle id="inner-q{st.id}" data-state-id="{st.id}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS - 5}" fill="none" stroke="#4ade80" stroke-width="1.8" />'
                 )
 
             svg_parts.append(
-                f'    <text x="{x:.1f}" y="{y + 4.5:.1f}" text-anchor="middle" fill="{text_color}" font-size="13" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">q{st.id}</text>'
+                f'    <text x="{x:.1f}" y="{y + 5.0:.1f}" text-anchor="middle" fill="{text_color}" font-size="14" font-weight="800" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" style="paint-order: stroke fill; stroke: #090d16; stroke-width: 3.5px; fill: {text_color} !important; font-weight: 800 !important;">q{st.id}</text>'
             )
 
         svg_parts.append('  </g>')
@@ -660,7 +660,7 @@ class Visualizer:
                 f'    <g id="dfa-group-D{sid}" class="cursor-pointer" data-dfa-state-id="{sid}" data-nfa-subset="{state.nfa_set_str}">'
             )
             svg_parts.append(
-                f'      <circle id="dfa-node-D{sid}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}" fill="{fill_color}" stroke="{border_color}" stroke-width="{stroke_w}"{filter_attr}><title>{tooltip}</title></circle>'
+                f'      <circle id="dfa-node-D{sid}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS}" fill="{fill_color}" stroke="{border_color}" stroke-width="{stroke_w}"{filter_attr} style="fill: {fill_color} !important; stroke: {border_color} !important;"><title>{tooltip}</title></circle>'
             )
             if is_st_accept:
                 svg_parts.append(
@@ -668,7 +668,7 @@ class Visualizer:
                 )
 
             svg_parts.append(
-                f'      <text x="{x:.1f}" y="{y + 5.0:.1f}" text-anchor="middle" fill="{text_color}" font-size="14" font-weight="800" font-family="ui-monospace, monospace">D{sid}</text>'
+                f'      <text x="{x:.1f}" y="{y + 5.0:.1f}" text-anchor="middle" fill="{text_color}" font-size="14" font-weight="800" font-family="ui-monospace, monospace" style="paint-order: stroke fill; stroke: #090d16; stroke-width: 3.5px; fill: {text_color} !important; font-weight: 800 !important;">D{sid}</text>'
             )
             svg_parts.append('    </g>')
 
