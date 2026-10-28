@@ -299,7 +299,7 @@ class Visualizer:
         view_h = max(max_y - min_y, 90.0)
 
         svg_parts = [
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{min_x:.1f} {min_y:.1f} {view_w:.1f} {view_h:.1f}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" class="nfa-layered-svg mx-auto block" role="img" aria-label="Generated ε-NFA" style="background: transparent; display: block; margin: 0 auto;">',
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{min_x:.1f} {min_y:.1f} {view_w:.1f} {view_h:.1f}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" class="automata-svg w-full h-auto select-none font-sans" role="img" aria-label="Generated ε-NFA" style="color-scheme: dark; background: transparent; display: block; margin: 0 auto;">',
             '  <defs>',
             '    <filter id="glow-gold" x="-30%" y="-30%" width="160%" height="160%">',
             '      <feGaussianBlur stdDeviation="4" result="blur" />',
@@ -447,11 +447,11 @@ class Visualizer:
                 row_idx[sid] = r_idx
 
         # 3. Geometric layout constants
-        NODE_RADIUS = 28
-        COLUMN_GAP = 145
-        ROW_GAP = 100
-        PADDING_X = 90
-        PADDING_Y = 60
+        NODE_RADIUS = 30
+        COLUMN_GAP = 150
+        ROW_GAP = 110
+        PADDING_X = 95
+        PADDING_Y = 65
 
         max_rows = max(len(c) for c in cols) if cols else 1
         height = PADDING_Y * 2 + max(1, max_rows - 1) * ROW_GAP + NODE_RADIUS * 2
@@ -466,27 +466,127 @@ class Visualizer:
                 y = top + r_idx * ROW_GAP
                 node_pos[sid] = (x, y)
 
-        # Check self-loops and back-edges to expand viewbox if needed
-        has_self_loops = any(
-            t["from"] == t["to"] for t in dfa.get_grouped_transitions()
-        )
-        has_back_edges = any(
-            column.get(int(t["to"].replace("D", "")), 0) < column.get(int(t["from"].replace("D", "")), 0)
-            for t in dfa.get_grouped_transitions() if t["from"] != t["to"]
-        )
-
-        # Calculate exact bounding box so no text or arrow is ever clipped
+        # Precompute edge bounds to prevent any curve clipping
         all_xs = [pos[0] for pos in node_pos.values()]
         all_ys = [pos[1] for pos in node_pos.values()]
+        min_y_bound = min(all_ys) - NODE_RADIUS - 30.0
+        max_y_bound = max(all_ys) + NODE_RADIUS + 30.0
+
+        # Group edges and prepare rendering data
+        grouped_edges = dfa.get_grouped_transitions()
+        edge_render_data = []
+
+        back_edge_counter = 0
+        for edge_idx, edge in enumerate(grouped_edges):
+            src_id = int(edge["from"].replace("D", ""))
+            tgt_id = int(edge["to"].replace("D", ""))
+            label = edge["label"]
+
+            if src_id not in node_pos or tgt_id not in node_pos:
+                continue
+
+            x1, y1 = node_pos[src_id]
+            x2, y2 = node_pos[tgt_id]
+
+            if src_id == tgt_id:
+                # Self Loop arc above the node
+                loop_r = 24
+                top_y = y1 - NODE_RADIUS
+                p1_x = x1 - 14
+                p2_x = x1 + 14
+                path_d = f"M {p1_x:.1f} {top_y:.1f} C {x1 - 36:.1f} {top_y - loop_r * 2.2:.1f}, {x1 + 36:.1f} {top_y - loop_r * 2.2:.1f}, {p2_x:.1f} {top_y:.1f}"
+                lbl_len = max(len(label) * 8.5 + 14.0, 24.0)
+                lbl_x = x1
+                lbl_y = top_y - loop_r * 2.2 + 3
+                min_y_bound = min(min_y_bound, lbl_y - 15)
+
+                edge_render_data.append({
+                    "path_d": path_d,
+                    "lbl_x": lbl_x,
+                    "lbl_y": lbl_y,
+                    "lbl_len": lbl_len,
+                    "label": label
+                })
+            else:
+                c1 = column.get(src_id, 0)
+                c2 = column.get(tgt_id, 0)
+                is_back = (c2 <= c1)
+
+                dx = x2 - x1
+                dy = y2 - y1
+                dist = math.hypot(dx, dy)
+                if dist < 1e-4:
+                    continue
+
+                if is_back:
+                    # Curved arc beneath nodes with staggered sag and label positioning
+                    col_diff = abs(c1 - c2)
+                    sag = 45 + col_diff * 34 + (back_edge_counter % 2) * 16
+                    back_edge_counter += 1
+
+                    mid_x = (x1 + x2) / 2.0
+                    mid_y = max(y1, y2) + sag
+                    ctrl_x = mid_x
+                    ctrl_y = mid_y
+                    max_y_bound = max(max_y_bound, ctrl_y + 35)
+
+                    ctrl_dx = ctrl_x - x1
+                    ctrl_dy = ctrl_y - y1
+                    ctrl_dist = math.hypot(ctrl_dx, ctrl_dy)
+                    start_x = x1 + (ctrl_dx / ctrl_dist) * NODE_RADIUS
+                    start_y = y1 + (ctrl_dy / ctrl_dist) * NODE_RADIUS
+
+                    end_dx = ctrl_x - x2
+                    end_dy = ctrl_y - y2
+                    end_dist = math.hypot(end_dx, end_dy)
+                    end_x = x2 + (end_dx / end_dist) * (NODE_RADIUS + 3.0)
+                    end_y = y2 + (end_dy / end_dist) * (NODE_RADIUS + 3.0)
+
+                    path_d = f"M {start_x:.1f} {start_y:.1f} Q {ctrl_x:.1f} {ctrl_y:.1f} {end_x:.1f} {end_y:.1f}"
+                    # Stagger label along Bezier curve to eliminate badge overlapping
+                    t = 0.36 if (back_edge_counter % 2 == 1) else 0.64
+                    lbl_x = (1 - t)**2 * start_x + 2 * (1 - t) * t * ctrl_x + t**2 * end_x
+                    lbl_y = (1 - t)**2 * start_y + 2 * (1 - t) * t * ctrl_y + t**2 * end_y
+                else:
+                    ux = dx / dist
+                    uy = dy / dist
+                    start_x = x1 + ux * NODE_RADIUS
+                    start_y = y1 + uy * NODE_RADIUS
+                    end_x = x2 - ux * (NODE_RADIUS + 3.0)
+                    end_y = y2 - uy * (NODE_RADIUS + 3.0)
+
+                    if abs(c2 - c1) > 1 and abs(dy) < 10:
+                        # Arc over intermediate columns
+                        ctrl_x = (x1 + x2) / 2.0
+                        ctrl_y = y1 - 38
+                        min_y_bound = min(min_y_bound, ctrl_y - 20)
+                        path_d = f"M {start_x:.1f} {start_y:.1f} Q {ctrl_x:.1f} {ctrl_y:.1f} {end_x:.1f} {end_y:.1f}"
+                        lbl_x = ctrl_x
+                        lbl_y = ctrl_y + 8
+                    else:
+                        path_d = f"M {start_x:.1f} {start_y:.1f} L {end_x:.1f} {end_y:.1f}"
+                        lbl_x = (start_x + end_x) / 2.0
+                        lbl_y = (start_y + end_y) / 2.0 - 9
+
+                lbl_len = max(len(label) * 8.5 + 14.0, 24.0)
+                edge_render_data.append({
+                    "path_d": path_d,
+                    "lbl_x": lbl_x,
+                    "lbl_y": lbl_y,
+                    "lbl_len": lbl_len,
+                    "label": label
+                })
+
+        # Calculate exact bounding box so no text or arrow is ever clipped
         min_x = min(all_xs) - NODE_RADIUS - 85.0
         max_x = max(all_xs) + NODE_RADIUS + 40.0
-        min_y = min(all_ys) - NODE_RADIUS - (55.0 if has_self_loops else 30.0)
-        max_y = max(all_ys) + NODE_RADIUS + (75.0 if has_back_edges else 30.0)
+        min_y = min_y_bound
+        max_y = max_y_bound
         view_w = max(max_x - min_x, 150.0)
         view_h = max(max_y - min_y, 90.0)
 
         svg_parts = [
-            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{min_x:.1f} {min_y:.1f} {view_w:.1f} {view_h:.1f}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" class="w-full h-auto select-none font-sans" style="background: transparent; display: block; margin: 0 auto;">',
+            f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{min_x:.1f} {min_y:.1f} {view_w:.1f} {view_h:.1f}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" class="automata-svg w-full h-auto select-none font-sans" style="color-scheme: dark; background: transparent; display: block; margin: 0 auto;">',
             '  <defs>',
             '    <filter id="glow-gold-dfa" x="-30%" y="-30%" width="160%" height="160%">',
             '      <feGaussianBlur stdDeviation="4" result="blur" />',
@@ -503,112 +603,24 @@ class Visualizer:
         ]
 
         # 4. Render Edges
-        grouped_edges = dfa.get_grouped_transitions()
-        for edge in grouped_edges:
-            src_id = int(edge["from"].replace("D", ""))
-            tgt_id = int(edge["to"].replace("D", ""))
-            label = edge["label"]
-
-            if src_id not in node_pos or tgt_id not in node_pos:
-                continue
-
-            x1, y1 = node_pos[src_id]
-            x2, y2 = node_pos[tgt_id]
-
-            if src_id == tgt_id:
-                # Self Loop arc
-                loop_r = 22
-                top_y = y1 - NODE_RADIUS
-                p1_x = x1 - 12
-                p2_x = x1 + 12
-                path_d = f"M {p1_x:.1f} {top_y:.1f} C {x1 - 32:.1f} {top_y - loop_r * 2:.1f}, {x1 + 32:.1f} {top_y - loop_r * 2:.1f}, {p2_x:.1f} {top_y:.1f}"
-                svg_parts.append(
-                    f'    <path d="{path_d}" fill="none" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#dfa-arrow-solid)" />'
-                )
-                lbl_len = max(len(label) * 8.0 + 12.0, 22.0)
-                lbl_x = x1
-                lbl_y = top_y - loop_r * 2 + 3
-                svg_parts.append(
-                    f'    <rect x="{lbl_x - lbl_len/2:.1f}" y="{lbl_y - 9:.1f}" width="{lbl_len:.1f}" height="17" rx="4" fill="#131b2e" stroke="#38bdf8" stroke-width="1.2" />'
-                )
-                svg_parts.append(
-                    f'    <text x="{lbl_x:.1f}" y="{lbl_y + 4:.1f}" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700" font-family="ui-monospace, monospace">{label}</text>'
-                )
-            else:
-                c1 = column.get(src_id, 0)
-                c2 = column.get(tgt_id, 0)
-                is_back = (c2 <= c1)
-
-                dx = x2 - x1
-                dy = y2 - y1
-                dist = math.hypot(dx, dy)
-                if dist < 1e-4:
-                    continue
-
-                if is_back:
-                    # Curved arc beneath nodes
-                    col_diff = abs(c1 - c2)
-                    sag = 48 + col_diff * 18
-                    mid_x = (x1 + x2) / 2.0
-                    mid_y = max(y1, y2) + sag
-                    ctrl_x = mid_x
-                    ctrl_y = mid_y
-
-                    # Quadratic Bezier trimmed to perimeter
-                    ctrl_dx = ctrl_x - x1
-                    ctrl_dy = ctrl_y - y1
-                    ctrl_dist = math.hypot(ctrl_dx, ctrl_dy)
-                    start_x = x1 + (ctrl_dx / ctrl_dist) * NODE_RADIUS
-                    start_y = y1 + (ctrl_dy / ctrl_dist) * NODE_RADIUS
-
-                    end_dx = ctrl_x - x2
-                    end_dy = ctrl_y - y2
-                    end_dist = math.hypot(end_dx, end_dy)
-                    end_x = x2 + (end_dx / end_dist) * (NODE_RADIUS + 3.0)
-                    end_y = y2 + (end_dy / end_dist) * (NODE_RADIUS + 3.0)
-
-                    path_d = f"M {start_x:.1f} {start_y:.1f} Q {ctrl_x:.1f} {ctrl_y:.1f} {end_x:.1f} {end_y:.1f}"
-                    lbl_x = (start_x + 2 * ctrl_x + end_x) / 4.0
-                    lbl_y = (start_y + 2 * ctrl_y + end_y) / 4.0
-                else:
-                    # Straight or slight forward curve
-                    ux = dx / dist
-                    uy = dy / dist
-                    start_x = x1 + ux * NODE_RADIUS
-                    start_y = y1 + uy * NODE_RADIUS
-                    end_x = x2 - ux * (NODE_RADIUS + 3.0)
-                    end_y = y2 - uy * (NODE_RADIUS + 3.0)
-
-                    if abs(c2 - c1) > 1 and abs(dy) < 10:
-                        # Arc over intermediate columns
-                        ctrl_x = (x1 + x2) / 2.0
-                        ctrl_y = y1 - 34
-                        path_d = f"M {start_x:.1f} {start_y:.1f} Q {ctrl_x:.1f} {ctrl_y:.1f} {end_x:.1f} {end_y:.1f}"
-                        lbl_x = ctrl_x
-                        lbl_y = ctrl_y + 8
-                    else:
-                        path_d = f"M {start_x:.1f} {start_y:.1f} L {end_x:.1f} {end_y:.1f}"
-                        lbl_x = (start_x + end_x) / 2.0
-                        lbl_y = (start_y + end_y) / 2.0 - 9
-
-                svg_parts.append(
-                    f'    <path d="{path_d}" fill="none" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#dfa-arrow-solid)" />'
-                )
-                lbl_len = max(len(label) * 8.0 + 12.0, 22.0)
-                svg_parts.append(
-                    f'    <rect x="{lbl_x - lbl_len/2:.1f}" y="{lbl_y - 9:.1f}" width="{lbl_len:.1f}" height="17" rx="4" fill="#131b2e" stroke="#38bdf8" stroke-width="1.2" />'
-                )
-                svg_parts.append(
-                    f'    <text x="{lbl_x:.1f}" y="{lbl_y + 4:.1f}" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700" font-family="ui-monospace, monospace">{label}</text>'
-                )
+        for ed in edge_render_data:
+            svg_parts.append(
+                f'    <path d="{ed["path_d"]}" fill="none" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#dfa-arrow-solid)" />'
+            )
+            svg_parts.append(
+                f'    <rect x="{ed["lbl_x"] - ed["lbl_len"]/2:.1f}" y="{ed["lbl_y"] - 9:.1f}" width="{ed["lbl_len"]:.1f}" height="18" rx="4" fill="#131b2e" stroke="#38bdf8" stroke-width="1.2" />'
+            )
+            svg_parts.append(
+                f'    <text x="{ed["lbl_x"]:.1f}" y="{ed["lbl_y"] + 4.5:.1f}" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700" font-family="ui-monospace, monospace">{ed["label"]}</text>'
+            )
 
         # 5. Start indicator
         sx, sy = node_pos[start_id]
         svg_parts.append(
-            f'    <line x1="{sx - NODE_RADIUS - 44:.1f}" y1="{sy:.1f}" x2="{sx - NODE_RADIUS - 4:.1f}" y2="{sy:.1f}" stroke="#38bdf8" stroke-width="2.2" marker-end="url(#dfa-arrow-start)" />'
+            f'    <line x1="{sx - NODE_RADIUS - 46:.1f}" y1="{sy:.1f}" x2="{sx - NODE_RADIUS - 4:.1f}" y2="{sy:.1f}" stroke="#38bdf8" stroke-width="2.2" marker-end="url(#dfa-arrow-start)" />'
         )
         svg_parts.append(
-            f'    <text x="{sx - NODE_RADIUS - 50:.1f}" y="{sy + 4.5:.1f}" text-anchor="end" fill="#38bdf8" font-size="12" font-weight="700">start</text>'
+            f'    <text x="{sx - NODE_RADIUS - 52:.1f}" y="{sy + 4.5:.1f}" text-anchor="end" fill="#38bdf8" font-size="13" font-weight="700">start</text>'
         )
 
         # 6. Render DFA states
@@ -622,28 +634,24 @@ class Visualizer:
                 fill_color = "#78350f"
                 border_color = "#fbbf24"
                 text_color = "#fef08a"
-                sub_color = "#fef9c3"
                 stroke_w = 3.0
                 filter_attr = ' filter="url(#glow-gold-dfa)"'
             elif is_st_accept:
                 fill_color = "#064e3b"
                 border_color = "#22c55e"
                 text_color = "#86efac"
-                sub_color = "#bbf7d0"
                 stroke_w = 2.5
                 filter_attr = ''
             elif is_st_start:
                 fill_color = "#1e3a8a"
                 border_color = "#38bdf8"
                 text_color = "#ffffff"
-                sub_color = "#93c5fd"
                 stroke_w = 2.5
                 filter_attr = ''
             else:
                 fill_color = "#1e293b"
                 border_color = "#64748b"
                 text_color = "#f8fafc"
-                sub_color = "#94a3b8"
                 stroke_w = 2.0
                 filter_attr = ''
 
@@ -656,16 +664,11 @@ class Visualizer:
             )
             if is_st_accept:
                 svg_parts.append(
-                    f'      <circle id="dfa-inner-D{sid}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS - 4}" fill="none" stroke="#4ade80" stroke-width="1.8" />'
+                    f'      <circle id="dfa-inner-D{sid}" cx="{x:.1f}" cy="{y:.1f}" r="{NODE_RADIUS - 5}" fill="none" stroke="#4ade80" stroke-width="1.8" />'
                 )
 
             svg_parts.append(
-                f'      <text x="{x:.1f}" y="{y - 2:.1f}" text-anchor="middle" fill="{text_color}" font-size="13" font-weight="700" font-family="ui-monospace, monospace">D{sid}</text>'
-            )
-            # Small constituent NFA count / sublabel
-            sub_lbl = f"{len(state.nfa_states)} q"
-            svg_parts.append(
-                f'      <text x="{x:.1f}" y="{y + 12:.1f}" text-anchor="middle" fill="{sub_color}" font-size="10" font-weight="600">{sub_lbl}</text>'
+                f'      <text x="{x:.1f}" y="{y + 5.0:.1f}" text-anchor="middle" fill="{text_color}" font-size="14" font-weight="800" font-family="ui-monospace, monospace">D{sid}</text>'
             )
             svg_parts.append('    </g>')
 

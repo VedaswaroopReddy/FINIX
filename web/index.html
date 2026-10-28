@@ -367,13 +367,24 @@
       box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5), 0 4px 14px rgba(0, 0, 0, 0.3);
       text-align: center;
       position: relative;
-      min-height: 380px;
-      height: 420px;
+      min-height: 360px;
+      height: 380px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: grab;
       user-select: none;
+    }
+
+    .canvas-expanded {
+      position: fixed !important;
+      top: 3vh !important;
+      left: 3vw !important;
+      width: 94vw !important;
+      height: 94vh !important;
+      z-index: 99999 !important;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.95), 0 0 0 1000px rgba(0, 0, 0, 0.75) !important;
+      border: 1px solid var(--primary) !important;
     }
 
     .nfa-canvas-card svg {
@@ -693,10 +704,11 @@
           </div>
           <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
             <div style="display: inline-flex; background: #0b1120; padding: 0.2rem; border-radius: 6px; border: 1px solid #1e293b;">
-              <button id="btn-view-all3" class="btn-secondary" style="background: var(--primary); color: #090d16; font-size: 0.8rem; padding: 0.3rem 0.6rem;" onclick="setViewMode('all3')"><i class="fa-solid fa-layer-group"></i> All 3 Tiers</button>
-              <button id="btn-view-min" class="btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;" onclick="setViewMode('min')"><i class="fa-solid fa-gem"></i> Minimal DFA</button>
-              <button id="btn-view-dfa" class="btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;" onclick="setViewMode('dfa')"><i class="fa-solid fa-circle-nodes"></i> Powerset DFA</button>
-              <button id="btn-view-nfa" class="btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.6rem;" onclick="setViewMode('nfa')"><i class="fa-solid fa-diagram-project"></i> ε-NFA</button>
+              <button id="btn-view-stacked" class="btn-secondary" style="background: var(--primary); color: #090d16; font-size: 0.8rem; padding: 0.3rem 0.65rem;" onclick="setViewMode('stacked')"><i class="fa-solid fa-bars"></i> Stacked (100% Width)</button>
+              <button id="btn-view-all3" class="btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.65rem;" onclick="setViewMode('all3')"><i class="fa-solid fa-table-columns"></i> 3 Columns</button>
+              <button id="btn-view-min" class="btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.65rem;" onclick="setViewMode('min')"><i class="fa-solid fa-gem"></i> Minimal DFA</button>
+              <button id="btn-view-dfa" class="btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.65rem;" onclick="setViewMode('dfa')"><i class="fa-solid fa-circle-nodes"></i> Powerset DFA</button>
+              <button id="btn-view-nfa" class="btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.65rem;" onclick="setViewMode('nfa')"><i class="fa-solid fa-diagram-project"></i> ε-NFA</button>
             </div>
           </div>
         </div>
@@ -1014,6 +1026,11 @@
           container.style.cursor = 'grab';
         }
       });
+
+      container.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.canvas-toolbar')) return;
+        resetCanvas(containerId);
+      });
     }
 
     function zoomCanvas(containerId, factor) {
@@ -1032,23 +1049,7 @@
       const container = document.getElementById(containerId);
       if (!container) return;
       container.classList.toggle('canvas-expanded');
-      if (container.classList.contains('canvas-expanded')) {
-        container.style.position = 'fixed';
-        container.style.top = '4vh';
-        container.style.left = '4vw';
-        container.style.width = '92vw';
-        container.style.height = '92vh';
-        container.style.zIndex = '99999';
-        container.style.boxShadow = '0 25px 60px rgba(0,0,0,0.85)';
-      } else {
-        container.style.position = 'relative';
-        container.style.top = '';
-        container.style.left = '';
-        container.style.width = '';
-        container.style.height = '';
-        container.style.zIndex = '';
-        container.style.boxShadow = '';
-      }
+      resetCanvas(containerId);
     }
 
     function applyCanvasTransform(containerId) {
@@ -1093,7 +1094,7 @@
       const colMin = document.getElementById('col-view-min');
       const grid = document.getElementById('automata-view-grid');
 
-      const btns = ['all3', 'min', 'dfa', 'nfa'];
+      const btns = ['stacked', 'all3', 'min', 'dfa', 'nfa'];
       btns.forEach(b => {
         const btn = document.getElementById(`btn-view-${b}`);
         if (btn) {
@@ -1102,11 +1103,22 @@
         }
       });
 
-      if (mode === 'all3') {
+      if (mode === 'stacked') {
         if (colNfa) colNfa.style.display = 'flex';
         if (colDfa) colDfa.style.display = 'flex';
         if (colMin) colMin.style.display = 'flex';
-        if (grid) grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        if (grid) {
+          grid.style.gridTemplateColumns = '1fr';
+          grid.style.gap = '2rem';
+        }
+      } else if (mode === 'all3') {
+        if (colNfa) colNfa.style.display = 'flex';
+        if (colDfa) colDfa.style.display = 'flex';
+        if (colMin) colMin.style.display = 'flex';
+        if (grid) {
+          grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+          grid.style.gap = '1.25rem';
+        }
       } else if (mode === 'min') {
         if (colNfa) colNfa.style.display = 'none';
         if (colDfa) colDfa.style.display = 'none';
@@ -1123,6 +1135,8 @@
         if (colMin) colMin.style.display = 'none';
         if (grid) grid.style.gridTemplateColumns = '1fr';
       }
+
+      ['svg-container', 'dfa-svg-container', 'min-dfa-svg-container'].forEach(id => resetCanvas(id));
     }
 
     function switchMatrixTab(tab) {
