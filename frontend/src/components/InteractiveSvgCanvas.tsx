@@ -23,6 +23,12 @@ export const InteractiveSvgCanvas: React.FC<InteractiveSvgCanvasProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.15 : 0.87;
+    setScale((s) => Math.min(5.0, Math.max(0.2, +(s * factor).toFixed(2))));
+  };
+
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     setIsDragging(true);
@@ -127,6 +133,7 @@ export const InteractiveSvgCanvas: React.FC<InteractiveSvgCanvasProps> = ({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onWheel={handleWheel}
         className={`relative w-full ${minHeight} studio-grid-bg overflow-hidden cursor-grab active:cursor-grabbing flex items-center justify-center p-4`}
       >
         <div

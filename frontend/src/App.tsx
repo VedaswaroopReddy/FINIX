@@ -115,6 +115,8 @@ export default function App() {
   const [newRuleThreat, setNewRuleThreat] = useState<SIEMRule['threatLevel']>('HIGH');
   const [newRuleCategory, setNewRuleCategory] = useState<string>('Custom Signature');
   const [siemRuleError, setSiemRuleError] = useState<string | null>(null);
+  const [selectedSiemRuleId, setSelectedSiemRuleId] = useState<string>('SEC-02');
+  const [siemViewMode, setSiemViewMode] = useState<'RULE' | 'MASTER'>('RULE');
 
   // Python Suite State
   const [selectedPythonFile, setSelectedPythonFile] = useState<string>('scanner.py');
@@ -296,9 +298,25 @@ export default function App() {
     return compileMasterSIEMAutomaton(siemRules);
   }, [siemRules]);
 
+  const selectedSiemRule = useMemo(() => {
+    return masterSiem.rules.find((r) => r.id === selectedSiemRuleId) || masterSiem.rules[0] || null;
+  }, [masterSiem, selectedSiemRuleId]);
+
   const masterSiemSvg = useMemo(() => {
     return generateDfaSvg(masterSiem.minimizedMasterDfa, { showSubsets: false });
   }, [masterSiem]);
+
+  const selectedSiemRuleSvg = useMemo(() => {
+    if (!selectedSiemRule) return '';
+    return generateDfaSvg(selectedSiemRule.minimalDfa, { showSubsets: false });
+  }, [selectedSiemRule]);
+
+  const activeSiemSvg = useMemo(() => {
+    if (siemViewMode === 'RULE' && selectedSiemRuleSvg) {
+      return selectedSiemRuleSvg;
+    }
+    return masterSiemSvg;
+  }, [siemViewMode, selectedSiemRuleSvg, masterSiemSvg]);
 
   const scannedLogs = useMemo(() => {
     const lines = logBatchText
@@ -1532,12 +1550,67 @@ export default function App() {
 
             {/* Master DFA Graph & Signature Catalog */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-              <div className="lg:col-span-7">
+              <div className="lg:col-span-7 flex flex-col space-y-2">
+                {/* View Mode & Signature Selector Tabs */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 bg-slate-900/90 border border-slate-800 rounded-lg text-xs">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSiemViewMode('RULE')}
+                      className={`px-3 py-1 rounded font-medium transition-colors ${
+                        siemViewMode === 'RULE'
+                          ? 'bg-sky-400 text-slate-950 font-semibold'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Signature Automaton ({selectedSiemRule?.id || 'SEC-02'})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSiemViewMode('MASTER')}
+                      className={`px-3 py-1 rounded font-medium transition-colors ${
+                        siemViewMode === 'MASTER'
+                          ? 'bg-sky-400 text-slate-950 font-semibold'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Unified Master DFA ({masterSiem.minimizedMasterDfa.states.size} Moore States)
+                    </button>
+                  </div>
+
+                  {siemViewMode === 'RULE' && (
+                    <div className="flex items-center gap-1 overflow-x-auto text-xs py-0.5">
+                      {masterSiem.rules.map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => setSelectedSiemRuleId(r.id)}
+                          className={`px-2 py-0.5 rounded font-mono text-[11px] transition-colors border ${
+                            selectedSiemRule?.id === r.id
+                              ? 'bg-sky-500/25 border-sky-400 text-sky-200 font-bold'
+                              : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {r.id} ({r.stateCount} st)
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <InteractiveSvgCanvas
-                  title={`Unified Multi-Rule Master DFA (|Q_Master| = ${masterSiem.minimizedMasterDfa.states.size} Moore States)`}
-                  subtitle="Red [SEC-XX] annotations indicate accepting states tagged with exact triggered rule IDs"
-                  svgMarkup={masterSiemSvg}
-                  filenameSlug="master_siem_dfa"
+                  title={
+                    siemViewMode === 'RULE' && selectedSiemRule
+                      ? `${selectedSiemRule.id} · ${selectedSiemRule.name} (${selectedSiemRule.stateCount} DFA States)`
+                      : `Unified Multi-Rule Master DFA (|Q_Master| = ${masterSiem.minimizedMasterDfa.states.size} Moore States)`
+                  }
+                  subtitle={
+                    siemViewMode === 'RULE' && selectedSiemRule
+                      ? `Regex: /${selectedSiemRule.pattern}/ · Threat: ${selectedSiemRule.threatLevel} · Category: ${selectedSiemRule.category}`
+                      : 'Multi-output Moore Automaton compiling all active security rules over disjoint minterm equivalence classes'
+                  }
+                  svgMarkup={activeSiemSvg}
+                  filenameSlug={siemViewMode === 'RULE' && selectedSiemRule ? `siem_${selectedSiemRule.id}` : 'master_siem_dfa'}
                   minHeight="h-[360px]"
                 />
               </div>
@@ -1549,7 +1622,18 @@ export default function App() {
                   </h2>
                   <div className="max-h-[210px] overflow-y-auto divide-y divide-slate-800/70 pr-1">
                     {masterSiem.rules.map((r) => (
-                      <div key={r.id} className="py-2 flex items-start justify-between gap-2 text-xs">
+                      <div
+                        key={r.id}
+                        onClick={() => {
+                          setSelectedSiemRuleId(r.id);
+                          setSiemViewMode('RULE');
+                        }}
+                        className={`py-2 px-1.5 rounded cursor-pointer transition-colors flex items-start justify-between gap-2 text-xs ${
+                          siemViewMode === 'RULE' && selectedSiemRule?.id === r.id
+                            ? 'bg-sky-500/15 border border-sky-500/30'
+                            : 'hover:bg-slate-800/40'
+                        }`}
+                      >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-bold text-sky-300">{r.id}</span>
@@ -1575,9 +1659,10 @@ export default function App() {
                           {siemRules.length > 1 && (
                             <button
                               type="button"
-                              onClick={() =>
-                                setSiemRules((prev) => prev.filter((item) => item.id !== r.id))
-                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSiemRules((prev) => prev.filter((item) => item.id !== r.id));
+                              }}
                               className="text-slate-500 hover:text-rose-400 transition-colors"
                               title="Remove signature"
                             >

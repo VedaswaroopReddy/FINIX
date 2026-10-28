@@ -192,27 +192,45 @@ export function generateNfaSvg(nfa: CompiledNFA, highlights: NFAHighlightConfig 
     colStates.forEach((sid, rIdx) => rowIdx.set(sid, rIdx));
   });
 
-  const NODE_RADIUS = 22;
-  const COLUMN_GAP = 108;
-  const ROW_GAP = 78;
+  // 2. Adaptive Sub-column folding for wide/deep layers to prevent vertical needle squishing
+  const rawMaxRows = Math.max(1, ...cols.map((c) => c.length));
+  const MAX_PER_SUBCOL = rawMaxRows > 7 ? 6 : Math.max(rawMaxRows, 1);
+
+  const stateEffectiveCol = new Map<number, number>();
+  const stateEffectiveRow = new Map<number, number>();
+  let currentBaseCol = 0;
+
+  cols.forEach((colStates) => {
+    const subColsNeeded = Math.max(1, Math.ceil(colStates.length / MAX_PER_SUBCOL));
+    colStates.forEach((sid, rIdx) => {
+      const subCol = Math.floor(rIdx / MAX_PER_SUBCOL);
+      const subRow = rIdx % MAX_PER_SUBCOL;
+      stateEffectiveCol.set(sid, currentBaseCol + subCol);
+      stateEffectiveRow.set(sid, subRow);
+    });
+    currentBaseCol += subColsNeeded;
+  });
+
+  const effectiveMaxRows = Math.min(rawMaxRows, MAX_PER_SUBCOL);
+
+  const NODE_RADIUS = nfa.states.size > 30 ? 18 : 22;
+  const COLUMN_GAP = nfa.states.size > 30 ? 96 : 108;
+  const ROW_GAP = nfa.states.size > 30 ? 66 : 78;
   const PADDING_X = 76;
   const PADDING_Y = 58;
 
-  const maxRows = Math.max(1, ...cols.map((c) => c.length));
-  const height = PADDING_Y * 2 + Math.max(1, maxRows - 1) * ROW_GAP + NODE_RADIUS * 2;
+  const height = PADDING_Y * 2 + Math.max(1, effectiveMaxRows - 1) * ROW_GAP + NODE_RADIUS * 2;
 
   const nodePos = new Map<number, { x: number; y: number; col: number }>();
-  cols.forEach((colStates, cIdx) => {
-    const colHeight = (colStates.length - 1) * ROW_GAP;
-    const top = height / 2 - colHeight / 2;
-    colStates.forEach((sid, rIdx) => {
-      nodePos.set(sid, {
-        x: PADDING_X + NODE_RADIUS + cIdx * COLUMN_GAP,
-        y: top + rIdx * ROW_GAP,
-        col: cIdx,
-      });
+  for (const sid of nfa.states.keys()) {
+    const effCol = stateEffectiveCol.get(sid) ?? 0;
+    const effRow = stateEffectiveRow.get(sid) ?? 0;
+    nodePos.set(sid, {
+      x: PADDING_X + NODE_RADIUS + effCol * COLUMN_GAP,
+      y: PADDING_Y + NODE_RADIUS + effRow * ROW_GAP,
+      col: effCol,
     });
-  });
+  }
 
   const allYs = Array.from(nodePos.values()).map((p) => p.y);
   const allXs = Array.from(nodePos.values()).map((p) => p.x);
@@ -510,24 +528,42 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
     colSids.forEach((sid, rIdx) => rowIdx.set(sid, rIdx));
   });
 
-  const NODE_RADIUS = 25;
-  const COLUMN_GAP = 128;
-  const ROW_GAP = 92;
+  // 2. Adaptive Sub-column folding for wide/deep layers to prevent vertical needle squishing
+  const rawMaxRows = Math.max(1, ...cols.map((c) => c.length));
+  const MAX_PER_SUBCOL = rawMaxRows > 7 ? 6 : Math.max(rawMaxRows, 1);
+
+  const stateEffectiveCol = new Map<number, number>();
+  const stateEffectiveRow = new Map<number, number>();
+  let currentBaseCol = 0;
+
+  cols.forEach((colSids) => {
+    const subColsNeeded = Math.max(1, Math.ceil(colSids.length / MAX_PER_SUBCOL));
+    colSids.forEach((sid, rIdx) => {
+      const subCol = Math.floor(rIdx / MAX_PER_SUBCOL);
+      const subRow = rIdx % MAX_PER_SUBCOL;
+      stateEffectiveCol.set(sid, currentBaseCol + subCol);
+      stateEffectiveRow.set(sid, subRow);
+    });
+    currentBaseCol += subColsNeeded;
+  });
+
+  const effectiveMaxRows = Math.min(rawMaxRows, MAX_PER_SUBCOL);
+
+  const NODE_RADIUS = allSids.length > 30 ? 20 : 25;
+  const COLUMN_GAP = allSids.length > 30 ? 110 : 128;
+  const ROW_GAP = allSids.length > 30 ? 76 : 92;
   const PADDING_X = 84;
   const PADDING_Y = 64;
 
-  const maxRows = Math.max(1, ...cols.map((c) => c.length));
-  const height = PADDING_Y * 2 + Math.max(1, maxRows - 1) * ROW_GAP + NODE_RADIUS * 2;
+  const height = PADDING_Y * 2 + Math.max(1, effectiveMaxRows - 1) * ROW_GAP + NODE_RADIUS * 2;
 
   const nodePos = new Map<number, { x: number; y: number }>();
-  cols.forEach((colSids, cIdx) => {
-    const colHeight = (colSids.length - 1) * ROW_GAP;
-    const top = height / 2 - colHeight / 2;
-    colSids.forEach((sid, rIdx) => {
-      nodePos.set(sid, {
-        x: PADDING_X + cIdx * COLUMN_GAP,
-        y: top + rIdx * ROW_GAP,
-      });
+  allSids.forEach((sid) => {
+    const effCol = stateEffectiveCol.get(sid) ?? 0;
+    const effRow = stateEffectiveRow.get(sid) ?? 0;
+    nodePos.set(sid, {
+      x: PADDING_X + effCol * COLUMN_GAP,
+      y: PADDING_Y + NODE_RADIUS + effRow * ROW_GAP,
     });
   });
 
@@ -583,8 +619,8 @@ export function generateDfaSvg(dfa: CompiledDFA, highlights: DFAHighlightConfig 
         isHighlightedEdge,
       });
     } else {
-      const c1 = column.get(edge.src) ?? 0;
-      const c2 = column.get(edge.tgt) ?? 0;
+      const c1 = stateEffectiveCol.get(edge.src) ?? 0;
+      const c2 = stateEffectiveCol.get(edge.tgt) ?? 0;
       const isBack = c2 <= c1;
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
