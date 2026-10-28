@@ -4,6 +4,7 @@ Provides zero-dependency REST endpoints and interactive web visualizer hosting.
 """
 
 import http.server
+import socket
 import socketserver
 import json
 import urllib.parse
@@ -298,13 +299,29 @@ class FinixRemasteredHandler(http.server.SimpleHTTPRequestHandler):
         })
 
 
+class DualStackThreadingServer(http.server.ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        try:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        except Exception:
+            pass
+        super().server_bind()
+
+
 def run_server(port: int = None):
     p = port or (int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else int(os.environ.get('PORT', PORT)))
     os.makedirs(DIRECTORY, exist_ok=True)
-    http.server.ThreadingHTTPServer.allow_reuse_address = True
-    with http.server.ThreadingHTTPServer(("", p), FinixRemasteredHandler) as httpd:
+    DualStackThreadingServer.allow_reuse_address = True
+    try:
+        httpd = DualStackThreadingServer(('::', p), FinixRemasteredHandler)
+    except Exception:
+        DualStackThreadingServer.address_family = socket.AF_INET
+        httpd = DualStackThreadingServer(('', p), FinixRemasteredHandler)
+    with httpd:
         print("=" * 76, flush=True)
-        print(f"🚀 FINIX is live at: http://localhost:{p}", flush=True)
+        print(f"🚀 FINIX is live at: http://localhost:{p} and http://127.0.0.1:{p}", flush=True)
         print("=" * 76, flush=True)
         print("Serving interactive visualizer, step stepper, security feed, and APIs.", flush=True)
         try:
