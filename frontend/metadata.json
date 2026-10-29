@@ -1,6 +1,6 @@
 {
-  "name": "FINIX Ω — Formal Automata Compiler & SIEM Workbench",
-  "description": "Industrial-grade formal language compiler, 4-stage synchronized automata visualizer, Hopcroft partition debugger, equivalence theorem prover with witness synthesis, and single-pass O(|w|) Master DFA SIEM engine.",
+  "name": "FINIX — Regular Expression Automata & SIEM Platform",
+  "description": "Regular expression compiler, interactive automata visualizer, step debugger, and SIEM log scanner.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

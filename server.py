@@ -37,7 +37,7 @@ siem_scanner = SIEMLogScanner()
 benchmark_suite = ReDoSBenchmarkSuite(timeout_sec=1.5)
 
 
-class FinixRemasteredHandler(http.server.SimpleHTTPRequestHandler):
+class FinixHttpHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, directory=None, **kwargs):
         if directory is None:
             directory = DIRECTORY
@@ -315,15 +315,15 @@ def run_server(port: int = None):
     os.makedirs(DIRECTORY, exist_ok=True)
     DualStackThreadingServer.allow_reuse_address = True
     try:
-        httpd = DualStackThreadingServer(('::', p), FinixRemasteredHandler)
+        httpd = DualStackThreadingServer(('::', p), FinixHttpHandler)
     except Exception:
         DualStackThreadingServer.address_family = socket.AF_INET
-        httpd = DualStackThreadingServer(('', p), FinixRemasteredHandler)
+        httpd = DualStackThreadingServer(('', p), FinixHttpHandler)
     with httpd:
         print("=" * 76, flush=True)
-        print(f"🚀 FINIX is live at: http://localhost:{p} and http://127.0.0.1:{p}", flush=True)
+        print(f"FINIX server running at: http://localhost:{p} and http://127.0.0.1:{p}", flush=True)
         print("=" * 76, flush=True)
-        print("Serving interactive visualizer, step stepper, security feed, and APIs.", flush=True)
+        print("Interactive automata visualizer, step debugger, and REST API.", flush=True)
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

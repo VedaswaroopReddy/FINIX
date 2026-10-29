@@ -19,7 +19,6 @@ import {
   Plus,
   Trash2,
   ArrowRight,
-  Code2,
   ShieldAlert,
   GitCompare,
   Layers,
@@ -48,10 +47,9 @@ import {
   compileMasterSIEMAutomaton,
   scanLogLineSinglePass,
 } from './engine/siemEngine';
-import { UPGRADED_PYTHON_MODULES } from './engine/pythonSuiteContent';
 import { InteractiveSvgCanvas } from './components/InteractiveSvgCanvas';
 
-type WorkspaceTab = 'pipeline' | 'debugger' | 'prover' | 'siem' | 'python';
+type WorkspaceTab = 'pipeline' | 'debugger' | 'prover' | 'siem';
 type PipelineStageMode = 'all4' | 'ast' | 'nfa' | 'powerset' | 'minimal';
 type ExportFormat = 'tikz' | 'dot_dfa' | 'dot_nfa' | 'ascii_table' | 'ascii_trace';
 
@@ -118,9 +116,6 @@ export default function App() {
   const [selectedSiemRuleId, setSelectedSiemRuleId] = useState<string>('SEC-02');
   const [siemViewMode, setSiemViewMode] = useState<'RULE' | 'MASTER'>('RULE');
   const [cleanSpineView, setCleanSpineView] = useState<boolean>(true);
-
-  // Python Suite State
-  const [selectedPythonFile, setSelectedPythonFile] = useState<string>('scanner.py');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Export Modal State
@@ -398,40 +393,15 @@ export default function App() {
     }
   };
 
-  const handleDownloadPythonModule = (filename: string, code: string) => {
-    const blob = new Blob([code], { type: 'text/x-python;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleDownloadFullPythonBundle = () => {
-    const bundle = UPGRADED_PYTHON_MODULES.map(
-      (m) =>
-        `# ============================================================================\n# FILE: finix_omega/${m.filename}\n# ${m.title}\n# ============================================================================\n\n${m.code}`
-    ).join('\n\n');
-    handleDownloadPythonModule('finix_omega_complete_suite.py', bundle);
-  };
-
   const activeHopcroftStep =
     compiled?.hopcroftSteps[
       Math.min(hopcroftStepCursor, (compiled?.hopcroftSteps.length ?? 1) - 1)
     ] ?? null;
 
-  const activePythonModule =
-    UPGRADED_PYTHON_MODULES.find((m) => m.filename === selectedPythonFile) ||
-    UPGRADED_PYTHON_MODULES[0];
-
   return (
     <div className="min-h-screen flex flex-col bg-[#090d16] text-slate-100">
       {/* =====================================================================
-          STRICT 3-ZONE TOP BAR CONTRACT
-          Zone 1: Brand Wordmark | Zone 2: 5 Nav Links | Zone 3: 1 Primary Action
+          TOP BAR: Brand Wordmark | Nav Links | Primary Action
          ===================================================================== */}
       <header className="flex items-center justify-between gap-8 px-6 py-3.5 border-b border-slate-800 bg-[#090d16]/95 sticky top-0 z-30 backdrop-blur">
         <a
@@ -442,7 +412,7 @@ export default function App() {
           }}
           className="text-lg font-bold tracking-tight text-slate-100 font-display whitespace-nowrap shrink-0"
         >
-          FINIX Ω
+          FINIX
         </a>
 
         <nav className="flex items-center gap-6 text-sm font-medium overflow-x-auto">
@@ -455,7 +425,7 @@ export default function App() {
                 : 'border-transparent text-slate-400 hover:text-slate-100'
             }`}
           >
-            Pipeline Studio
+            Pipeline
           </button>
           <button
             type="button"
@@ -466,7 +436,7 @@ export default function App() {
                 : 'border-transparent text-slate-400 hover:text-slate-100'
             }`}
           >
-            Dual Debugger
+            Step Debugger
           </button>
           <button
             type="button"
@@ -477,7 +447,7 @@ export default function App() {
                 : 'border-transparent text-slate-400 hover:text-slate-100'
             }`}
           >
-            Hopcroft &amp; Prover
+            Minimization &amp; Equivalence
           </button>
           <button
             type="button"
@@ -488,18 +458,7 @@ export default function App() {
                 : 'border-transparent text-slate-400 hover:text-slate-100'
             }`}
           >
-            SIEM Master DFA
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('python')}
-            className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
-              activeTab === 'python'
-                ? 'border-sky-400 text-sky-300'
-                : 'border-transparent text-slate-400 hover:text-slate-100'
-            }`}
-          >
-            Python Suite
+            SIEM Scanner
           </button>
         </nav>
 
@@ -680,7 +639,7 @@ export default function App() {
          ===================================================================== */}
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-6 py-6">
         {/* -----------------------------------------------------------------
-            WORKSPACE 1: SYNCHRONIZED 4-STAGE PIPELINE STUDIO
+            WORKSPACE 1: PIPELINE STUDIO
            ----------------------------------------------------------------- */}
         {activeTab === 'pipeline' && compiled && pipelineSvgs && (
           <div className="space-y-6">
@@ -688,10 +647,10 @@ export default function App() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h1 className="text-xl font-bold text-slate-100 font-display">
-                  01. Synchronized 4-Stage Automaton Synthesis
+                  Automata Pipeline
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Hover over any state node in the ε-NFA, Powerset DFA, or Minimal Quotient DFA to illuminate its exact Myhill-Nerode equivalence correspondence across all stages.
+                  Synthesize regular expressions across four representation tiers: Syntax Tree, Thompson ε-NFA, Powerset DFA, and Minimal DFA.
                 </p>
               </div>
 
@@ -699,9 +658,9 @@ export default function App() {
                 <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg">
                   {(
                     [
-                      { id: 'all4', label: 'Synchronized 4-Stage Grid' },
-                      { id: 'ast', label: '1. Algebraic AST' },
-                      { id: 'nfa', label: '2. Thompson ε-NFA' },
+                      { id: 'all4', label: '4-Stage Grid' },
+                      { id: 'ast', label: '1. AST' },
+                      { id: 'nfa', label: '2. Thompson NFA' },
                       { id: 'powerset', label: '3. Powerset DFA' },
                       { id: 'minimal', label: '4. Minimal DFA' },
                     ] as const
@@ -740,7 +699,7 @@ export default function App() {
             {crossStageHighlights.summary && (
               <div className="border border-amber-500/40 bg-amber-950/20 px-4 py-2 rounded-md text-xs font-mono text-amber-200 flex items-center justify-between">
                 <span>{crossStageHighlights.summary}</span>
-                <span className="text-amber-400/80">Live Cross-Stage Subset Projection</span>
+                <span className="text-amber-400/80">Live Subset Mapping</span>
               </div>
             )}
 
@@ -754,22 +713,22 @@ export default function App() {
                   filenameSlug="stage1_ast"
                 />
                 <InteractiveSvgCanvas
-                  title={`Stage 2 · Inductive Thompson ε-NFA (|Q| = ${compiled.nfa.states.size})`}
-                  subtitle={`Start: q${compiled.nfa.startStateId} · Accept: q${compiled.nfa.acceptStateId} · Linear Bound ≤ 2|r|`}
+                  title={`Stage 2 · Thompson NFA (|Q| = ${compiled.nfa.states.size})`}
+                  subtitle={`Start: q${compiled.nfa.startStateId} · Accept: q${compiled.nfa.acceptStateId}`}
                   svgMarkup={pipelineSvgs.nfaSvg}
                   filenameSlug="stage2_thompson_nfa"
                   onStateHover={setHoveredState}
                 />
                 <InteractiveSvgCanvas
                   title={`Stage 3 · Rabin-Scott Powerset DFA (|Q_D| = ${compiled.powersetDfa.states.size})`}
-                  subtitle={`Determinized over ${compiled.minterms.length} Disjoint Minterm Equivalence Classes`}
+                  subtitle={`Subset Construction over ${compiled.minterms.length} Minterms`}
                   svgMarkup={pipelineSvgs.powersetSvg}
                   filenameSlug="stage3_powerset_dfa"
                   onStateHover={setHoveredState}
                 />
                 <InteractiveSvgCanvas
-                  title={`Stage 4 · Hopcroft Canonical Minimal DFA (|Q_M| = ${compiled.minimalDfa.states.size})`}
-                  subtitle={`Reduced from ${compiled.powersetDfa.states.size} → ${compiled.minimalDfa.states.size} states via O(|Σ|·n log n) refinement`}
+                  title={`Stage 4 · Hopcroft Minimal DFA (|Q_M| = ${compiled.minimalDfa.states.size})`}
+                  subtitle={`Reduced from ${compiled.powersetDfa.states.size} → ${compiled.minimalDfa.states.size} states`}
                   svgMarkup={pipelineSvgs.minimalSvg}
                   filenameSlug="stage4_minimal_dfa"
                   onStateHover={setHoveredState}
@@ -788,7 +747,7 @@ export default function App() {
                 )}
                 {pipelineStageMode === 'nfa' && (
                   <InteractiveSvgCanvas
-                    title={`Stage 2 · Inductive Thompson ε-NFA (|Q| = ${compiled.nfa.states.size})`}
+                    title={`Stage 2 · Thompson NFA (|Q| = ${compiled.nfa.states.size})`}
                     subtitle={`Start: q${compiled.nfa.startStateId} · Accept: q${compiled.nfa.acceptStateId}`}
                     svgMarkup={pipelineSvgs.nfaSvg}
                     filenameSlug="stage2_thompson_nfa"
@@ -799,7 +758,7 @@ export default function App() {
                 {pipelineStageMode === 'powerset' && (
                   <InteractiveSvgCanvas
                     title={`Stage 3 · Rabin-Scott Powerset DFA (|Q_D| = ${compiled.powersetDfa.states.size})`}
-                    subtitle={`Subset Construction over Minterms Σ/~`}
+                    subtitle={`Subset Construction over Minterms`}
                     svgMarkup={pipelineSvgs.powersetSvg}
                     filenameSlug="stage3_powerset_dfa"
                     minHeight="h-[500px]"
@@ -808,8 +767,8 @@ export default function App() {
                 )}
                 {pipelineStageMode === 'minimal' && (
                   <InteractiveSvgCanvas
-                    title={`Stage 4 · Hopcroft Canonical Minimal DFA (|Q_M| = ${compiled.minimalDfa.states.size})`}
-                    subtitle={`Myhill-Nerode Quotient Automaton`}
+                    title={`Stage 4 · Hopcroft Minimal DFA (|Q_M| = ${compiled.minimalDfa.states.size})`}
+                    subtitle={`Quotient Automaton`}
                     svgMarkup={pipelineSvgs.minimalSvg}
                     filenameSlug="stage4_minimal_dfa"
                     minHeight="h-[500px]"
@@ -825,7 +784,7 @@ export default function App() {
                 <div>
                   <div className="flex items-center justify-between gap-4 mb-3">
                     <h2 className="text-sm font-semibold text-slate-100">
-                      Canonical Minimal DFA Transition Table δ(Mₖ, [c])
+                      Minimal DFA Transition Table δ(Mₖ, [c])
                     </h2>
                     <span className="text-xs text-slate-400 font-mono">
                       → Start · * Accept · ∅ Trap
@@ -954,7 +913,7 @@ export default function App() {
         )}
 
         {/* -----------------------------------------------------------------
-            WORKSPACE 2: LIVE DUAL-TRACE EXECUTION DEBUGGER
+            WORKSPACE 2: STEP DEBUGGER
            ----------------------------------------------------------------- */}
         {activeTab === 'debugger' && compiled && simulation && debuggerSvgs && (
           <div className="space-y-6">
@@ -963,10 +922,10 @@ export default function App() {
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h1 className="text-xl font-bold text-slate-100 font-display">
-                    02. Synchronized Dual-Track Step Debugger
+                    Step Debugger
                   </h1>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Scrub character-by-character to compare non-deterministic Thompson ε-NFA state sets (MOVE + ε-closure) against the single active state in Hopcroft&apos;s Minimal DFA.
+                    Step character-by-character through input string w to trace non-deterministic NFA active sets alongside the deterministic DFA transition path.
                   </p>
                 </div>
 
@@ -1192,17 +1151,17 @@ export default function App() {
         )}
 
         {/* -----------------------------------------------------------------
-            WORKSPACE 3: HOPCROFT REFINER & EQUIVALENCE WITNESS PROVER
+            WORKSPACE 3: MINIMIZATION & EQUIVALENCE PROVER
            ----------------------------------------------------------------- */}
         {activeTab === 'prover' && compiled && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h1 className="text-xl font-bold text-slate-100 font-display">
-                  03. Hopcroft Partition Refiner &amp; Myhill-Nerode Theorem Prover
+                  Minimization &amp; Equivalence Prover
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Inspect every partition split of Hopcroft&apos;s O(|Σ|·n log n) worklist algorithm or prove formal language equivalence L(r₁) ≡ L(r₂) with shortest counterexample synthesis.
+                  Step through partition refinement or test formal language equivalence L(r₁) = L(r₂) with counterexample witness synthesis.
                 </p>
               </div>
 
@@ -1216,7 +1175,7 @@ export default function App() {
                       : 'text-slate-400 hover:text-slate-100'
                   }`}
                 >
-                  Hopcroft Partition &amp; Myhill-Nerode Matrix
+                  Hopcroft Partition Refinement
                 </button>
                 <button
                   type="button"
@@ -1227,7 +1186,7 @@ export default function App() {
                       : 'text-slate-400 hover:text-slate-100'
                   }`}
                 >
-                  Regex Equivalence &amp; Witness Prover (L₁ ⊕ L₂)
+                  Regex Equivalence Prover
                 </button>
               </div>
             </div>
@@ -1316,7 +1275,7 @@ export default function App() {
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <div>
                       <h2 className="text-sm font-semibold text-slate-100">
-                        Myhill-Nerode Pairwise Distinguishability &amp; Shortest Suffix Table
+                        Pairwise Distinguishability &amp; Suffix Table
                       </h2>
                       <p className="text-xs text-slate-400">
                         For every pair of Powerset DFA states (Dᵢ, Dⱼ), displays the shortest distinguishing suffix string w such that δ̂(Dᵢ, w) ∈ F ⟺ δ̂(Dⱼ, w) ∉ F, or proves Dᵢ ≡ Dⱼ.
@@ -1334,7 +1293,7 @@ export default function App() {
                         <thead>
                           <tr className="border-b border-slate-800 text-slate-400">
                             <th className="py-2 pr-4">State Pair</th>
-                            <th className="py-2 px-4">Myhill-Nerode Relation</th>
+                            <th className="py-2 px-4">Relation</th>
                             <th className="py-2 px-4">Shortest Distinguishing Suffix (w)</th>
                             <th className="py-2 pl-4">Discovery Round</th>
                           </tr>
@@ -1539,17 +1498,17 @@ export default function App() {
         )}
 
         {/* -----------------------------------------------------------------
-            WORKSPACE 4: SINGLE-PASS O(|w|) MASTER DFA SIEM LOG FORENSICS
+            WORKSPACE 4: SIEM MULTI-PATTERN LOG SCANNER
            ----------------------------------------------------------------- */}
         {activeTab === 'siem' && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h1 className="text-xl font-bold text-slate-100 font-display">
-                  04. True Single-Pass O(|w|) Multi-Output Master DFA SIEM Engine
+                  SIEM Multi-Pattern Log Scanner
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Compiles all {masterSiem.rules.length} security signatures into a single Moore-minimized Master Automaton ({masterSiem.minimizedMasterDfa.states.size} states over {masterSiem.unifiedMinterms.length} unified minterms) that inspects log lines in one pass.
+                  Scans log lines in a single pass using a unified Moore Master DFA compiled from {masterSiem.rules.length} security signatures.
                 </p>
               </div>
 
@@ -1790,7 +1749,7 @@ export default function App() {
 
               <div className="lg:col-span-7 border border-slate-800 bg-slate-900/90 rounded-lg p-4 space-y-4">
                 <h2 className="text-sm font-semibold text-slate-100">
-                  Single-Pass Deterministic Inspection Results (Click Row to Inspect Trajectory)
+                  Log Stream &amp; Detection Output (Click Row to Inspect Trajectory)
                 </h2>
                 <div className="overflow-x-auto max-h-[260px]">
                   <table className="w-full text-left border-collapse font-mono text-xs tabular-nums">
@@ -1874,145 +1833,10 @@ export default function App() {
           </div>
         )}
 
-        {/* -----------------------------------------------------------------
-            WORKSPACE 5: UPGRADED PYTHON 3.12+ CODEBASE & EXPORTER
-           ----------------------------------------------------------------- */}
-        {activeTab === 'python' && (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h1 className="text-xl font-bold text-slate-100 font-display">
-                  05. Upgraded Python 3.12+ Architecture Suite (FINIX Ω)
-                </h1>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Inspect, compare, copy, or download the complete 9-module Python package featuring Minterm Partitioning, {`{n,m}`} Quantifiers, Witness Synthesis, and the fixed O(|w|) Multi-Tag Master DFA.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleDownloadFullPythonBundle}
-                className="px-4 py-2 text-xs font-semibold bg-sky-400 hover:bg-sky-300 text-slate-950 rounded-md transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Complete Python Suite (.py)</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-              {/* Left Module Selector Sidebar */}
-              <div className="lg:col-span-3 border border-slate-800 bg-slate-900/90 rounded-lg divide-y divide-slate-800">
-                {UPGRADED_PYTHON_MODULES.map((mod) => (
-                  <button
-                    key={mod.filename}
-                    type="button"
-                    onClick={() => setSelectedPythonFile(mod.filename)}
-                    className={`w-full text-left px-4 py-3 transition-colors flex items-center justify-between gap-2 ${
-                      selectedPythonFile === mod.filename
-                        ? 'bg-sky-500/15 text-sky-300'
-                        : 'text-slate-300 hover:bg-slate-800/60'
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <div className="font-mono text-xs font-semibold truncate">{mod.filename}</div>
-                      <div className="text-[11px] text-slate-400 truncate mt-0.5">{mod.title}</div>
-                    </div>
-                    <span className="font-mono text-[11px] text-slate-400 tabular-nums shrink-0">
-                      {mod.linesOfCode}L
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Right Code & Architectural Diff Panel */}
-              <div className="lg:col-span-9 space-y-4">
-                {/* Original vs FINIX Ω Upgrade Comparison Card */}
-                <div className="border border-slate-800 bg-slate-900/90 rounded-lg p-5 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-100 font-mono">
-                        finix_omega/{activePythonModule.filename}
-                      </h2>
-                      <p className="text-xs text-slate-400">{activePythonModule.title}</p>
-                    </div>
-                    <span className="text-xs font-mono text-emerald-400">
-                      {activePythonModule.complexityGuarantee}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 text-xs">
-                    <div className="border border-rose-500/30 bg-rose-950/15 rounded p-3.5 space-y-1">
-                      <div className="font-semibold text-rose-300">
-                        Original Script Limitation (FINIX v1)
-                      </div>
-                      <p className="text-slate-300 leading-relaxed">
-                        {activePythonModule.originalLimitation}
-                      </p>
-                    </div>
-                    <div className="border border-emerald-500/30 bg-emerald-950/15 rounded p-3.5 space-y-1">
-                      <div className="font-semibold text-emerald-300">
-                        FINIX Ω Generational Upgrade
-                      </div>
-                      <p className="text-slate-300 leading-relaxed">
-                        {activePythonModule.generationalUpgrade}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Python Source Viewer */}
-                <div className="border border-slate-800 bg-slate-950 rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800 bg-slate-900">
-                    <span className="font-mono text-xs text-slate-300">
-                      {activePythonModule.filename} · Python 3.12+ Strict Type Annotations
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          copyText(activePythonModule.code, activePythonModule.filename)
-                        }
-                        className="px-3 py-1 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded transition-colors flex items-center gap-1.5"
-                      >
-                        {copiedId === activePythonModule.filename ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy Module</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleDownloadPythonModule(
-                            activePythonModule.filename,
-                            activePythonModule.code
-                          )
-                        }
-                        className="px-3 py-1 text-xs font-medium bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 rounded transition-colors flex items-center gap-1.5"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Download {activePythonModule.filename}</span>
-                      </button>
-                    </div>
-                  </div>
-                  <pre className="p-4 text-xs font-mono text-slate-200 overflow-x-auto max-h-[540px] leading-relaxed">
-                    <code>{activePythonModule.code}</code>
-                  </pre>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* =====================================================================
-          EXPORT ARTIFACTS MODAL (LaTeX TikZ, Graphviz DOT, Formal ASCII)
+          EXPORT ARTIFACTS MODAL (LaTeX TikZ, Graphviz DOT, ASCII)
          ===================================================================== */}
       {isExportModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
@@ -2020,10 +1844,10 @@ export default function App() {
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950">
               <div>
                 <h2 className="text-sm font-bold text-slate-100 font-display">
-                  Academic &amp; Engineering Artifact Exporter
+                  Export Artifacts
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Export publication-ready LaTeX TikZ, Graphviz DOT, or TOC ASCII Tables for pattern:{' '}
+                  Export LaTeX TikZ, Graphviz DOT, or ASCII transition tables and traces for pattern:{' '}
                   <code className="text-sky-300">{regexInput}</code>
                 </p>
               </div>
@@ -2041,10 +1865,10 @@ export default function App() {
                 <div className="flex flex-wrap gap-1.5">
                   {(
                     [
-                      { id: 'tikz', label: 'LaTeX TikZ (IEEE/ACM Paper)' },
+                      { id: 'tikz', label: 'LaTeX TikZ' },
                       { id: 'dot_dfa', label: 'Graphviz DOT (Minimal DFA)' },
                       { id: 'dot_nfa', label: 'Graphviz DOT (Thompson ε-NFA)' },
-                      { id: 'ascii_table', label: 'Formal ASCII Transition Table' },
+                      { id: 'ascii_table', label: 'ASCII Transition Table' },
                       { id: 'ascii_trace', label: 'ASCII Simulation Trace' },
                     ] as const
                   ).map((tab) => (

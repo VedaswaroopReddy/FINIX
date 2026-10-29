@@ -1,5 +1,5 @@
 /**
- * automataEngine.ts: FINIX Ω Formal Automata Compiler, Minterm Partitioner,
+ * automataEngine.ts: FINIX Automata Compiler, Minterm Partitioner,
  * Hopcroft Step-by-Step Refiner, Myhill-Nerode Prover, and Counterexample Witness Synthesizer.
  */
 
@@ -1732,7 +1732,7 @@ function analyzeRedosRisk(ast: ASTNode, nfa: CompiledNFA, minimalDfa: CompiledDF
       backtrackerRisk: 'CRITICAL',
       starHeight: maxStarDepth,
       nondeterministicBranching: branchingStates,
-      explanation: `Nested quantifier star-height ${maxStarDepth} causes O(2^|w|) catastrophic backtracking in PCRE/Python 're'. FINIX Ω compiles this into a ${minimalDfa.states.size}-state Minimal DFA with guaranteed O(|w|) single-pass execution.`,
+      explanation: `Nested quantifier star-height ${maxStarDepth} causes O(2^|w|) catastrophic backtracking in PCRE/Python 're'. FINIX compiles this into a ${minimalDfa.states.size}-state Minimal DFA with guaranteed O(|w|) single-pass execution.`,
       evilPayloadSample: `${sampleRepeatChar.repeat(28)}!`,
     };
   }
@@ -1743,7 +1743,7 @@ function analyzeRedosRisk(ast: ASTNode, nfa: CompiledNFA, minimalDfa: CompiledDF
       backtrackerRisk: 'MEDIUM',
       starHeight: maxStarDepth,
       nondeterministicBranching: branchingStates,
-      explanation: `Quantified pattern with ${branchingStates} non-deterministic branching states can exhibit O(|w|²) polynomial backtracking in naive engines. Determinized to ${minimalDfa.states.size} states in FINIX Ω.`,
+      explanation: `Quantified pattern with ${branchingStates} non-deterministic branching states can exhibit O(|w|²) polynomial backtracking in naive engines. Determinized to ${minimalDfa.states.size} states in FINIX.`,
       evilPayloadSample: `${sampleRepeatChar.repeat(24)}X`,
     };
   }
@@ -2068,6 +2068,6 @@ export const COMPILER_PRESETS: CompilerPreset[] = [
     regex: '(a+)+b',
     sampleAccept: 'aaaaab',
     sampleReject: 'aaaaaaaaaaaaaaaaaaaa!',
-    description: 'Triggers O(2^n) catastrophic backtracking in PCRE/Python re on rejecting strings, yet runs in 0.01ms O(|w|) time via FINIX Ω Minimal DFA.',
+    description: 'Triggers O(2^n) catastrophic backtracking in PCRE/Python re on rejecting strings, yet runs in 0.01ms O(|w|) time via FINIX Minimal DFA.',
   },
 ];
