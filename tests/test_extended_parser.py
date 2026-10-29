@@ -1,5 +1,5 @@
 """
-test_extended_parser.py: Comprehensive Unit & Integration Tests for Review-2 Extended Grammar.
+test_extended_parser.py: Comprehensive Unit & Integration Tests for Extended POSIX Grammar.
 Validates:
   1. Positive closure quantifier (+)
   2. Optional quantifier (?)

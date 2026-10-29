@@ -1,15 +1,18 @@
 """
-demo.py: Interactive Terminal Showcase and Automated Review-1 Slide Screenshot Generator.
-Synthesizes all 5 modules from first principles:
-  1. Lexer, Explicit Concat (·), and AST Parser
-  2. Thompson's Inductive Construction (ε-NFA)
-  3. Formal TOC State Transition Table
-  4. Step-by-Step Simulation Trace
-  5. Applied Security Signature Threat Scanner
+demo.py: Interactive Terminal Showcase for the FINIX Automata Engine.
+Demonstrates the full theoretical hierarchy from first principles:
+  1. Lexer, Explicit Concatenation (·), and Extended AST
+  2. Thompson Inductive ε-NFA Construction
+  3. Rabin-Scott Powerset Determinization (DFA)
+  4. Hopcroft Canonical State Minimization
+  5. Myhill-Nerode Language Equivalence Theorem Prover
+  6. Single-Pass SIEM Multi-Signature Master DFA
+  7. Empirical ReDoS Immunity Verification
 """
 
 import sys
 import os
+import time
 
 # Ensure UTF-8 output on Windows consoles
 if hasattr(sys.stdout, 'reconfigure'):
@@ -25,9 +28,12 @@ if hasattr(sys.stderr, 'reconfigure'):
 
 from regex_nfa.parser import parse_regex, format_postfix, build_ast, tokenize, insert_explicit_concat
 from regex_nfa.thompson import compile_regex
+from regex_nfa.dfa import nfa_to_dfa
+from regex_nfa.minimizer import minimize_dfa, are_equivalent_regexes
 from regex_nfa.simulator import NFASimulator
 from regex_nfa.visualizer import Visualizer
-from regex_nfa.security import SecurityScanner
+from regex_nfa.scanner import SIEMLogScanner
+from regex_nfa.benchmarks import ReDoSBenchmarkSuite
 
 
 class Color:
@@ -43,152 +49,139 @@ class Color:
 
 def banner():
     print(f"{Color.CYAN}{Color.BOLD}" + "=" * 78)
-    print("         FINIX Remastered: First-Principles Regular Expression Engine")
-    print("               Theory of Computation — Review 1 Prototype")
+    print("         FINIX: Formally Verified Automata & ReDoS Mitigation Platform")
+    print("               First-Principles Theory of Computation Suite")
     print("=" * 78 + f"{Color.END}")
 
 
-def run_case(case_num: int, title: str, regex: str, test_cases: list):
-    print(f"\n{Color.BOLD}{Color.HEADER}==============================================================================")
-    print(f" SCREENSHOT CASE {case_num}: {title.upper()}")
-    print(f"=============================================================================={Color.END}")
-    print(f"{Color.BOLD}Input Regular Expression :{Color.END} {Color.CYAN}{regex}{Color.END}")
+def run_pipeline_demo(regex: str, test_inputs: list):
+    print(f"\n{Color.BOLD}{Color.HEADER}" + "=" * 78)
+    print(f" DEMO CASE: COMPILING REGEX '/{regex}/'")
+    print("=" * 78 + f"{Color.END}")
 
-    # 1. Lexer & Concat Form
+    # 1. Lexer & AST
     raw_tokens = tokenize(regex)
     concat_tokens = insert_explicit_concat(raw_tokens)
-    print(f"{Color.BOLD}Explicit Concat Form (·) :{Color.END} {' '.join(t.value for t in concat_tokens)}")
-
-    # 2. Postfix & AST
     postfix_tokens = parse_regex(regex)
-    print(f"{Color.BOLD}Postfix Notation (RPN)   :{Color.END} {format_postfix(postfix_tokens)}")
     ast = build_ast(postfix_tokens)
-    ast_str = ast.to_string() if ast else "empty()"
-    print(f"{Color.BOLD}Abstract Syntax Tree     :{Color.END} {Color.YELLOW}{ast_str}{Color.END}")
 
-    # 3. Compile to NFA
+    print(f"{Color.BOLD}1. Syntax Layer:{Color.END}")
+    print(f"   • Explicit Concat Form (·) : {' '.join(t.value for t in concat_tokens)}")
+    print(f"   • Reverse Polish (RPN)     : {format_postfix(postfix_tokens)}")
+    print(f"   • Abstract Syntax Tree     : {Color.YELLOW}{ast.to_string() if ast else 'empty()'}{Color.END}")
+
+    # 2. Thompson ε-NFA
+    t0 = time.perf_counter()
     nfa = compile_regex(regex)
+    nfa_ms = (time.perf_counter() - t0) * 1000
     metrics = nfa.get_metrics()
-    print(f"{Color.BOLD}Constructed ε-NFA Metrics:{Color.END} {metrics['state_count']} states, {metrics['transition_count']} transitions ({metrics['epsilon_transition_count']} ε-moves)")
+    print(f"\n{Color.BOLD}2. Tier 1 — Thompson ε-NFA (compiled in {nfa_ms:.3f} ms):{Color.END}")
+    print(f"   • States |Q_N|             : {metrics['state_count']} (Theoretical Bound: <= 2|r|)")
+    print(f"   • Transitions |δ_N|        : {metrics['transition_count']} ({metrics['epsilon_transition_count']} ε-moves)")
+    print(f"   • Start / Accept States    : Start q{nfa.start_state.id} -> Accept q{nfa.accept_state.id}")
 
-    # 4. Formal Transition Table
-    print(f"\n{Color.BOLD}[Formal State Transition Table (δ)]{Color.END}")
-    print(Visualizer.generate_transition_table(nfa))
+    # 3. Rabin-Scott Powerset DFA
+    t0 = time.perf_counter()
+    dfa = nfa_to_dfa(nfa)
+    dfa_ms = (time.perf_counter() - t0) * 1000
+    dfa_metrics = dfa.get_metrics()
+    print(f"\n{Color.BOLD}3. Tier 2 — Rabin-Scott Powerset DFA (synthesized in {dfa_ms:.3f} ms):{Color.END}")
+    print(f"   • Powerset States |Q_D|    : {dfa_metrics['state_count']}")
+    print(f"   • Transitions |δ_D|        : {dfa_metrics['transition_count']}")
+    print(f"   • Start State              : {dfa_metrics['start_state']}")
+    print(f"   • Accept States            : {dfa_metrics['accept_states']}")
 
-    # 5. Simulation Test Suite
-    simulator = NFASimulator(nfa)
-    print(f"\n{Color.BOLD}[Simulation Test Suite]{Color.END}")
-    for string, expected in test_cases:
-        res = simulator.simulate(string)
-        verdict = f"{Color.GREEN}ACCEPTED{Color.END}" if res.is_accepted else f"{Color.RED}REJECTED{Color.END}"
-        expected_str = "ACCEPT" if expected else "REJECT"
-        status = f"{Color.GREEN}PASS{Color.END}" if res.is_accepted == expected else f"{Color.RED}FAIL{Color.END}"
-        display_str = f"'{string}'" if string != "" else "ε (empty string)"
-        print(f"  • Input: {display_str:<26} -> Result: {verdict:<18} (Expected: {expected_str:<6} | Status: {status})")
+    # 4. Hopcroft Canonical Minimization
+    t0 = time.perf_counter()
+    min_dfa = minimize_dfa(dfa)
+    min_ms = (time.perf_counter() - t0) * 1000
+    min_metrics = min_dfa.get_metrics()
+    reduction = ((len(dfa.states) - len(min_dfa.states)) / len(dfa.states)) * 100 if dfa.states else 0
+    print(f"\n{Color.BOLD}4. Tier 3 — Hopcroft Canonical Minimal DFA (minimized in {min_ms:.3f} ms):{Color.END}")
+    print(f"   • Minimal States |Q_M|     : {min_metrics['state_count']}")
+    print(f"   • State Reduction Ratio    : {reduction:.1f}% reduction")
+    print(f"   • Start State              : {min_metrics['start_state']}")
+    print(f"   • Accept States            : {min_metrics['accept_states']}")
 
-    # 6. Detailed Step Trace
-    if test_cases:
-        sample_str = test_cases[0][0]
-        sample_res = simulator.simulate(sample_str)
-        print(f"\n{Color.BOLD}[Detailed Execution Trace for Input '{sample_str}']{Color.END}")
-        print(Visualizer.format_simulation_trace(sample_res))
+    # 5. Differential Parity Matching Across All 3 Tiers
+    print(f"\n{Color.BOLD}5. Differential Parity Execution:{Color.END}")
+    sim_nfa = NFASimulator(nfa)
+    for text, expected in test_inputs:
+        nfa_res = sim_nfa.simulate(text)
+        dfa_res = dfa.match(text)
+        min_res = min_dfa.match(text)
 
-    # 7. Export Academic SVG Diagram (FINIX-1 Textbook Aesthetic)
-    svg_content = Visualizer.generate_layered_svg(nfa)
-    svg_filename = f"case{case_num}_nfa.svg"
-    with open(svg_filename, "w", encoding="utf-8") as f:
-        f.write(svg_content)
-    with open("last_nfa.svg", "w", encoding="utf-8") as f:
-        f.write(svg_content)
-    print(f"\n{Color.CYAN}  [Generated publication-grade SVG: '{svg_filename}' & 'last_nfa.svg']{Color.END}")
+        parity = (nfa_res.is_accepted == dfa_res == min_res)
+        parity_str = f"{Color.GREEN}PARITY OK{Color.END}" if parity else f"{Color.RED}PARITY MISMATCH{Color.END}"
+        verdict = f"{Color.GREEN}ACCEPTED{Color.END}" if min_res else f"{Color.RED}REJECTED{Color.END}"
+        display_str = f"'{text}'" if text != "" else "ε (empty string)"
+
+        print(f"   • Input: {display_str:<22} -> {verdict:<18} [NFA={nfa_res.is_accepted}, DFA={dfa_res}, MinDFA={min_res}] ({parity_str})")
 
 
-def run_automated_showcase():
-    banner()
+def run_equivalence_demo():
+    print(f"\n{Color.BOLD}{Color.HEADER}" + "=" * 78)
+    print(" DEMO: MYHILL-NERODE LANGUAGE EQUIVALENCE THEOREM PROVER")
+    print("=" * 78 + f"{Color.END}")
 
-    # Case 1: Basic Regex
-    run_case(
-        case_num=1,
-        title="Basic Kleene Star & Concatenation (Accepted & Rejected Cases)",
-        regex="a*b",
-        test_cases=[
-            ("aaab", True),
-            ("b", True),
-            ("ab", True),
-            ("aaba", False),
-            ("aaa", False),
-            ("ba", False)
-        ]
-    )
-
-    # Case 2: Union
-    run_case(
-        case_num=2,
-        title="Union / Alternation Operator (|)",
-        regex="a|b",
-        test_cases=[
-            ("a", True),
-            ("b", True),
-            ("c", False),
-            ("ab", False),
-            ("", False)
-        ]
-    )
-
-    # Case 3: Textbook Expression
-    run_case(
-        case_num=3,
-        title="Complex Textbook Expression: (a|b)*abb",
-        regex="(a|b)*abb",
-        test_cases=[
-            ("abb", True),
-            ("aabb", True),
-            ("ababb", True),
-            ("babb", True),
-            ("ab", False),
-            ("abba", False),
-            ("", False)
-        ]
-    )
-
-    # Case 4: Security Signature
-    print(f"\n{Color.BOLD}{Color.HEADER}==============================================================================")
-    print(f" SCREENSHOT CASE 4: SECURITY PATTERN MATCHING APPLICATION")
-    print(f"=============================================================================={Color.END}")
-
-    scanner = SecurityScanner()
-    test_urls = [
-        "https://example.com/file.exe",
-        "http://malware-distribution.org/trojan.exe",
-        "https://example.com/index.html",
-        "http://test.com/document.pdf",
-        "https://bank.com/admin/login",
-        "https://company.org/update.sh",
-        "admin' or '1'='1"
+    pairs = [
+        ("a+", "aa*", True, "Kleene Star Unrolling"),
+        ("(a|b)*", "(a*b*)*", True, "Star Sliding Identity"),
+        ("(a|b)*abb", "(a|b)*ab", False, "Different Language Suffix"),
     ]
 
-    print(f"{Color.BOLD}Registered Security Signatures:{Color.END}")
-    for idx, rule in enumerate(scanner.rules, 1):
-        print(f"  [{idx}] {rule.name:<40} | Level: {rule.threat_level:<8} | Pattern: {rule.pattern}")
+    for r1, r2, expected_eq, label in pairs:
+        is_eq, msg = are_equivalent_regexes(r1, r2)
+        status = f"{Color.GREEN}PASS{Color.END}" if is_eq == expected_eq else f"{Color.RED}FAIL{Color.END}"
+        relation = f"{Color.GREEN}L({r1}) ≡ L({r2}){Color.END}" if is_eq else f"{Color.YELLOW}L({r1}) ≢ L({r2}){Color.END}"
+        print(f"\n[*] Case: {label}")
+        print(f"    Comparing: r1='{r1}' vs r2='{r2}'")
+        print(f"    Verdict  : {relation} ({status})")
+        print(f"    Proof    : {msg}")
 
-    print(f"\n{Color.BOLD}[Live Security Traffic Scanner Feed]{Color.END}")
-    print("-" * 78)
-    for url in test_urls:
-        report = scanner.scan(url)
-        if report.is_flagged:
-            rules_hit = ", ".join(f"[{m['rule'].id}] {m['rule'].name}" for m in report.matches)
-            threat = report.highest_threat
-            color = Color.RED if threat in ["CRITICAL", "HIGH"] else Color.YELLOW
-            print(f" {color}[ALERT - {threat}]{Color.END} {url}")
-            print(f"   └── Matched Signature(s): {Color.CYAN}{rules_hit}{Color.END}")
+
+def run_siem_demo():
+    print(f"\n{Color.BOLD}{Color.HEADER}" + "=" * 78)
+    print(" DEMO: SINGLE-PASS SIEM MULTI-PATTERN MASTER DFA SCANNER")
+    print("=" * 78 + f"{Color.END}")
+
+    scanner = SIEMLogScanner()
+    print(f"[*] Loaded {len(scanner.rules)} security rules into unified Master DFA.")
+
+    test_payloads = [
+        ("GET /search?id=1' or 1=1-- HTTP/1.1", "SQL Injection"),
+        ("GET /public/documents/../../etc/passwd HTTP/1.1", "Path Traversal"),
+        ("GET /comment?q=<script>alert(1)</script> HTTP/1.1", "XSS Injection"),
+        ("GET /api/v1/products?category=electronics HTTP/1.1", "Benign API Call"),
+    ]
+
+    print("\n[+] Single-Pass Stream Inspection:")
+    for payload, desc in test_payloads:
+        matches = scanner.master_dfa.scan_target(payload)
+        if matches:
+            hit_tags = ", ".join(f"[{m.id}] {m.name}" for m in matches)
+            print(f" {Color.RED}[THREAT DETECTED - {matches[0].threat_level}]{Color.END} {desc}")
+            print(f"   Payload: {payload}")
+            print(f"   Triggered Rules: {Color.CYAN}{hit_tags}{Color.END}")
         else:
-            print(f" {Color.GREEN}[CLEAN / BENIGN]{Color.END} {url}")
-    print("-" * 78)
+            print(f" {Color.GREEN}[CLEAN / BENIGN]{Color.END} {desc}")
+            print(f"   Payload: {payload}")
+
+
+def run_redos_demo():
+    print(f"\n{Color.BOLD}{Color.HEADER}" + "=" * 78)
+    print(" DEMO: EMPIRICAL REDOS IMMUNITY HARNESS")
+    print("=" * 78 + f"{Color.END}")
+
+    suite = ReDoSBenchmarkSuite(timeout_sec=1.0)
+    print("[*] Running nested quantifier ReDoS benchmark: (a+)+b against 'a'*n + '!'\n")
+    report = suite.run_benchmark("TAXONOMY_1", lengths=[6, 10, 14, 18, 22])
+    print(report["ascii_table"])
 
 
 def interactive_mode():
     banner()
-    print(f"{Color.CYAN}Interactive First-Principles Regex Simulator & Visualizer{Color.END}")
+    print(f"{Color.CYAN}Interactive First-Principles Regex Compiler & Stepper{Color.END}")
     print("Type 'exit' or 'q' to quit.\n")
 
     while True:
@@ -201,43 +194,29 @@ def interactive_mode():
                 break
 
             postfix = parse_regex(regex)
-            print(f"  {Color.BOLD}Postfix (RPN):{Color.END} {format_postfix(postfix)}")
-
-            ast = build_ast(postfix)
-            if ast:
-                print(f"  {Color.BOLD}AST Structure:{Color.END} {ast.to_string()}")
+            print(f"  {Color.BOLD}Postfix (RPN) :{Color.END} {format_postfix(postfix)}")
 
             nfa = compile_regex(regex)
-            metrics = nfa.get_metrics()
-            print(f"  {Color.BOLD}NFA Metrics  :{Color.END} {metrics['state_count']} states, {metrics['transition_count']} transitions ({metrics['epsilon_transition_count']} ε-moves)")
+            dfa = nfa_to_dfa(nfa)
+            min_dfa = minimize_dfa(dfa)
 
-            print(f"\n{Color.BOLD}Formal State Transition Table (δ):{Color.END}")
-            print(Visualizer.generate_transition_table(nfa))
+            print(f"  {Color.BOLD}NFA States    :{Color.END} {len(nfa.states)} states (Thompson)")
+            print(f"  {Color.BOLD}Powerset DFA  :{Color.END} {len(dfa.states)} states (Rabin-Scott)")
+            print(f"  {Color.BOLD}Minimal DFA   :{Color.END} {len(min_dfa.states)} states (Hopcroft)")
 
-            # DOT & SVG export
-            dot_filename = "last_nfa.dot"
-            with open(dot_filename, "w", encoding="utf-8") as f:
-                f.write(Visualizer.export_graphviz_dot(nfa, title=f"NFA for /{regex}/"))
-            svg_filename = "last_nfa.svg"
-            with open(svg_filename, "w", encoding="utf-8") as f:
-                f.write(Visualizer.generate_layered_svg(nfa))
-            print(f"\n  [Diagrams saved: '{dot_filename}' (Graphviz) & '{svg_filename}' (Layered SVG)]")
+            print(f"\n{Color.BOLD}Canonical Minimal Transition Table:{Color.END}")
+            print(min_dfa.generate_transition_table())
 
-            simulator = NFASimulator(nfa)
             print(f"\n{Color.CYAN}Enter test strings (type 'done' to change regex):{Color.END}")
             while True:
                 test_str = input("  Test String: ")
                 if test_str.lower() in {'done', 'back'}:
                     break
-                result = simulator.simulate(test_str)
-                if result.is_accepted:
-                    print(f"  -> {Color.GREEN}{Color.BOLD}ACCEPTED{Color.END} ✓ ({result.elapsed_ms:.3f} ms)")
+                accepted = min_dfa.match(test_str)
+                if accepted:
+                    print(f"  -> {Color.GREEN}{Color.BOLD}ACCEPTED{Color.END} ✓ (O(|w|) Linear DFA)")
                 else:
-                    print(f"  -> {Color.RED}{Color.BOLD}REJECTED{Color.END} ✗ ({result.elapsed_ms:.3f} ms)")
-
-                show_trace = input("  Show step-by-step trace? (y/n): ").strip().lower()
-                if show_trace == 'y':
-                    print("\n" + Visualizer.format_simulation_trace(result) + "\n")
+                    print(f"  -> {Color.RED}{Color.BOLD}REJECTED{Color.END} ✗ (O(|w|) Linear DFA)")
 
             print("\n" + "=" * 78 + "\n")
 
@@ -245,9 +224,44 @@ def interactive_mode():
             print(f"{Color.RED}Error: {e}{Color.END}\n")
 
 
-if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == "--interactive":
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] in {"--interactive", "-i"}:
         interactive_mode()
     else:
-        run_automated_showcase()
+        banner()
+        # Case 1: Textbook pattern
+        run_pipeline_demo(
+            regex="(a|b)*abb",
+            test_inputs=[
+                ("abb", True),
+                ("aabb", True),
+                ("ababb", True),
+                ("babb", True),
+                ("ab", False),
+                ("abba", False),
+                ("", False),
+            ]
+        )
+        # Case 2: Extended Grammar
+        run_pipeline_demo(
+            regex="a+b?",
+            test_inputs=[
+                ("a", True),
+                ("ab", True),
+                ("aaaaab", True),
+                ("b", False),
+                ("", False),
+            ]
+        )
+        # Equivalence Prover
+        run_equivalence_demo()
+        # SIEM Scanner
+        run_siem_demo()
+        # ReDoS Immunity
+        run_redos_demo()
+
         print(f"\n{Color.CYAN}Tip: Run `python demo.py --interactive` for live interactive prompt!{Color.END}\n")
+
+
+if __name__ == '__main__':
+    main()

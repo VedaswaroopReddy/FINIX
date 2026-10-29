@@ -326,28 +326,28 @@ def main():
     # compile
     p_comp = subparsers.add_parser("compile", help="Compile regex to Thompson ε-NFA")
     p_comp.add_argument("regex", nargs="?", default=None, help="Regular expression string")
-    p_comp.add_argument("--regex", dest="regex_flag", default=None, help="Regular expression string")
-    p_comp.add_argument("--table", action="store_true", help="Print full transition table")
+    p_comp.add_argument("--regex", "-r", "-p", dest="regex_flag", default=None, help="Regular expression string")
+    p_comp.add_argument("--table", "-t", action="store_true", help="Print full transition table")
     p_comp.set_defaults(func=cmd_compile)
 
     # dfa
     p_dfa = subparsers.add_parser("dfa", help="Construct Rabin-Scott Powerset DFA")
     p_dfa.add_argument("regex", nargs="?", default=None, help="Regular expression string")
-    p_dfa.add_argument("--regex", dest="regex_flag", default=None, help="Regular expression string")
+    p_dfa.add_argument("--regex", "-r", "-p", dest="regex_flag", default=None, help="Regular expression string")
     p_dfa.set_defaults(func=cmd_dfa)
 
     # minimize
     p_min = subparsers.add_parser("minimize", help="Synthesize Hopcroft Canonical Minimal DFA")
     p_min.add_argument("regex", nargs="?", default=None, help="Regular expression string")
-    p_min.add_argument("--regex", dest="regex_flag", default=None, help="Regular expression string")
+    p_min.add_argument("--regex", "-r", "-p", dest="regex_flag", default=None, help="Regular expression string")
     p_min.set_defaults(func=cmd_minimize)
 
     # match
     p_match = subparsers.add_parser("match", help="Match text across NFA, Powerset DFA, and Min-DFA")
     p_match.add_argument("regex", nargs="?", default=None, help="Regular expression string")
     p_match.add_argument("text", nargs="?", default=None, help="Input string to evaluate")
-    p_match.add_argument("--regex", dest="regex_flag", default=None, help="Regular expression string")
-    p_match.add_argument("--text", dest="text_flag", default=None, help="Input string to evaluate")
+    p_match.add_argument("--regex", "-r", "-p", dest="regex_flag", default=None, help="Regular expression string")
+    p_match.add_argument("--text", "-t", "-i", dest="text_flag", default=None, help="Input string to evaluate")
     p_match.add_argument("--trace", action="store_true", help="Display step execution trace")
     p_match.set_defaults(func=cmd_match)
 
@@ -355,8 +355,8 @@ def main():
     p_eq = subparsers.add_parser("equivalent", help="Prove language equivalence L(r1) ≡ L(r2)")
     p_eq.add_argument("regex1", nargs="?", default=None, help="First regular expression")
     p_eq.add_argument("regex2", nargs="?", default=None, help="Second regular expression")
-    p_eq.add_argument("--regex1", dest="regex1_flag", default=None, help="First regular expression")
-    p_eq.add_argument("--regex2", dest="regex2_flag", default=None, help="Second regular expression")
+    p_eq.add_argument("--regex1", "--r1", "-1", dest="regex1_flag", default=None, help="First regular expression")
+    p_eq.add_argument("--regex2", "--r2", "-2", dest="regex2_flag", default=None, help="Second regular expression")
     p_eq.set_defaults(func=cmd_equivalent)
 
     # benchmark

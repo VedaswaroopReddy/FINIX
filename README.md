@@ -166,13 +166,14 @@ Launch the zero-dependency web interface:
 
 ```bash
 python server.py
+# or
+python finix.py serve --port 8000
 ```
-Open **[http://localhost:8000](http://localhost:8000)** to access:
-- **3-Tier Automata Workbench:** Live side-by-side rendering of Thompson ε-NFA, Powerset DFA, and Hopcroft Minimal DFA.
-- **Synchronized Vector Stepper:** Step through arbitrary strings with glowing golden state illumination.
-- **Live ReDoS Profiler:** Run interactive performance benchmarks comparing Python's backtracking `re` vs. FINIX.
-- **SIEM Threat Scanner:** Inject live HTTP access log batches with real-time severity badges (`CRITICAL`, `HIGH`).
-- **Equivalence Prover:** Test formal regular expression algebraic identities.
+Open **[http://localhost:8000](http://localhost:8000)** to access the 4 integrated workspaces:
+- **Automata Pipeline:** 4-stage live synthesis of Syntax Tree, Thompson ε-NFA, Powerset DFA, and Minimal DFA with cross-stage subset projection and artifact export (LaTeX TikZ, Graphviz DOT, ASCII tables).
+- **Step Debugger:** Scrub character-by-character through input strings to trace non-deterministic NFA active sets alongside the deterministic DFA path.
+- **Minimization & Equivalence:** Step through Hopcroft partition refinement stages and prove language equivalence $L(r_1) \equiv L(r_2)$ with counterexample witness synthesis.
+- **SIEM Scanner:** Single-pass multi-pattern log stream inspection using a unified Moore Master DFA compiled from security signatures.
 
 ---
 
