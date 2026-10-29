@@ -227,6 +227,44 @@ class NFA:
             "accept_state": f"q{self.accept_state.id}",
         }
 
+    def clone(self) -> 'NFA':
+        """Deep clones the NFA with fresh State instances and identical topology."""
+        all_states = list(self.get_all_states())
+        new_states = {s.id: State(state_id=s.id, is_accept=s.is_accept) for s in all_states}
+        for s in all_states:
+            new_s = new_states[s.id]
+            for sym, targets in s.transitions.items():
+                for tgt in targets:
+                    new_s.add_transition(sym, new_states[tgt.id])
+        return NFA(new_states[self.start_state.id], new_states[self.accept_state.id])
+
     def __repr__(self) -> str:
         states = self.get_all_states()
         return f"NFA(Q={len(states)}, Start=q{self.start_state.id}, Accept=q{self.accept_state.id})"
+
+
+def make_unanchored_nfa(nfa: NFA) -> NFA:
+    """
+    Transforms an anchored ε-NFA matching L(r) into an unanchored ε-NFA
+    matching Σ* · L(r) · Σ* (i.e. finding r as a substring anywhere in the input stream).
+    Synthesizes:
+      1. New unanchored start state s_start with wildcard self-loop s_start --Σ--> s_start
+         and ε-transition s_start --ε--> nfa.start_state.
+      2. New unanchored accept state s_accept with wildcard self-loop s_accept --Σ--> s_accept,
+         unsetting nfa.accept_state.is_accept and adding nfa.accept_state --ε--> s_accept.
+      3. Renumbers all states sequentially in topological BFS order.
+    """
+    nfa_copy = nfa.clone()
+    s_start = State()
+    s_start.add_transition(Symbol.any(), s_start)
+    s_start.add_transition(Symbol.epsilon(), nfa_copy.start_state)
+
+    s_accept = State(is_accept=True)
+    nfa_copy.accept_state.is_accept = False
+    nfa_copy.accept_state.add_transition(Symbol.epsilon(), s_accept)
+    s_accept.add_transition(Symbol.any(), s_accept)
+
+    unanchored = NFA(s_start, s_accept)
+    unanchored.renumber_states()
+    return unanchored
+

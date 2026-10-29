@@ -9,7 +9,7 @@ Complete 3-Tier Architecture:
 """
 
 from .parser import parse_regex, insert_explicit_concat, infix_to_postfix
-from .nfa import State, NFA, EPSILON, WILDCARD
+from .nfa import State, NFA, EPSILON, WILDCARD, make_unanchored_nfa
 from .thompson import compile_regex
 from .simulator import NFASimulator
 from .security import SecurityScanner, SecurityRule
@@ -20,6 +20,7 @@ from .minimizer import (
     compile_to_minimal_dfa,
     are_isomorphic,
     are_equivalent_regexes,
+    prove_regex_equivalence,
 )
 from .benchmarks import ReDoSBenchmarkSuite, BENCHMARK_TAXONOMIES
 from .scanner import SIEMRule, MasterSecurityDFA, SIEMLogScanner
@@ -33,6 +34,7 @@ __all__ = [
     "EPSILON",
     "WILDCARD",
     "compile_regex",
+    "make_unanchored_nfa",
     "NFASimulator",
     "SecurityScanner",
     "SecurityRule",
@@ -45,6 +47,7 @@ __all__ = [
     "compile_to_minimal_dfa",
     "are_isomorphic",
     "are_equivalent_regexes",
+    "prove_regex_equivalence",
     "ReDoSBenchmarkSuite",
     "BENCHMARK_TAXONOMIES",
     "SIEMRule",

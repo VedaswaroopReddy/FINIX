@@ -57,6 +57,10 @@ class MasterSecurityDFA:
         self.rules = {r.id: r for r in rules}
         self.rule_list = rules
         self.master_dfa, self.state_rule_map = self._build_master_automaton()
+        self.fast_tables = [r.dfa.fast_table for r in self.rule_list]
+        self.is_acceptings = [r.dfa.is_accepting for r in self.rule_list]
+        self.start_states = [r.dfa.start_state_id for r in self.rule_list]
+        self.rule_count = len(self.rule_list)
 
     def _build_master_automaton(self) -> Tuple[DFA, Dict[int, List[str]]]:
         """
@@ -151,15 +155,32 @@ class MasterSecurityDFA:
 
     def scan_target(self, payload: str) -> List[SIEMRule]:
         """
-        Executes high-throughput deterministic scan across input string.
-        Evaluates payload through compiled Minimal DFAs using contiguous jump tables.
+        Executes strictly single-pass O(|w|) deterministic multi-pattern matching
+        across all K rules simultaneously in lockstep.
+        Evaluates input character-by-character against precomputed contiguous jump tables.
         Returns list of all matched SIEM rules.
         """
-        matched = []
-        for rule in self.rule_list:
-            if rule.dfa.match(payload):
-                matched.append(rule)
-        return matched
+        if not payload:
+            return []
+
+        # Lockstep state vector: single-pass O(|w|) traversal
+        states = list(self.start_states)
+        tables = self.fast_tables
+        is_accs = self.is_acceptings
+        k_count = self.rule_count
+
+        for ch in payload:
+            code = ord(ch)
+            if code < ASCII_LIMIT:
+                for i in range(k_count):
+                    st = states[i]
+                    if st != -1:
+                        states[i] = tables[i][st][code]
+            else:
+                for i in range(k_count):
+                    states[i] = -1
+
+        return [self.rule_list[i] for i in range(k_count) if states[i] != -1 and is_accs[i][states[i]]]
 
 
 class LogIncident:

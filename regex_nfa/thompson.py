@@ -7,7 +7,7 @@ Synthesizes an ε-NFA from Postfix Tokens / AST with strict invariant guarantees
 """
 
 from typing import List
-from .nfa import State, NFA, Symbol
+from .nfa import State, NFA, Symbol, make_unanchored_nfa
 from .parser import Token, TokenType, parse_regex
 
 
@@ -198,7 +198,14 @@ def thompson_construction(postfix_tokens: List[Token]) -> NFA:
     return final_nfa
 
 
-def compile_regex(regex_str: str) -> NFA:
-    """Compiles a regular expression string into a verified ε-NFA."""
+def compile_regex(regex_str: str, anchored: bool = True) -> NFA:
+    """
+    Compiles a regular expression string into a verified ε-NFA.
+    If anchored=True (default): matches exact full string L(r).
+    If anchored=False: matches any string containing a match for r (Σ* · L(r) · Σ*).
+    """
     postfix_tokens = parse_regex(regex_str)
-    return thompson_construction(postfix_tokens)
+    nfa = thompson_construction(postfix_tokens)
+    if not anchored:
+        nfa = make_unanchored_nfa(nfa)
+    return nfa

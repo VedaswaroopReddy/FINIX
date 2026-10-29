@@ -17,6 +17,7 @@ from regex_nfa import (
     minimize_dfa,
     are_isomorphic,
     are_equivalent_regexes,
+    prove_regex_equivalence,
 )
 from regex_nfa.simulator import NFASimulator
 
@@ -125,6 +126,29 @@ class TestLanguageEquivalenceTheoremProver:
         """a+ is NOT equivalent to a* (empty string difference)."""
         is_eq, msg = are_equivalent_regexes("a+", "a*")
         assert is_eq is False, msg
+        assert "NOT EQUIVALENT" in msg
+
+    def test_witness_synthesis_empty_string_difference(self):
+        """a* contains empty string ε which a+ does not; witness must be empty string."""
+        res = prove_regex_equivalence("a+", "a*")
+        assert res["is_equivalent"] is False
+        assert res["is_subset_l1_of_l2"] is True
+        assert res["witness_l1_minus_l2"] is None
+        assert res["witness_l2_minus_l1"] == ""  # epsilon
+
+    def test_witness_synthesis_disjoint_counterexamples(self):
+        """(a|b)*abb and (a|b)*ab are disjoint; witnesses must be 'abb' and 'ab'."""
+        res = prove_regex_equivalence("(a|b)*abb", "(a|b)*ab")
+        assert res["is_equivalent"] is False
+        assert res["witness_l1_minus_l2"] == "abb"
+        assert res["witness_l2_minus_l1"] == "ab"
+
+    def test_witness_synthesis_equivalent_identities(self):
+        """Equivalent regexes have zero counterexamples."""
+        res = prove_regex_equivalence("a+", "aa*")
+        assert res["is_equivalent"] is True
+        assert res["witness_l1_minus_l2"] is None
+        assert res["witness_l2_minus_l1"] is None
 
 
 class TestCharacterClassMinimization:

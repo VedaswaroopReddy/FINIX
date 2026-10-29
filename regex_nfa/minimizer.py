@@ -361,10 +361,10 @@ def minimize_dfa(dfa: DFA) -> DFA:
     return minimizer.minimize()
 
 
-def compile_to_minimal_dfa(regex_str: str) -> DFA:
+def compile_to_minimal_dfa(regex_str: str, anchored: bool = True) -> DFA:
     """End-to-End Pipeline: Regex -> ε-NFA -> Powerset DFA -> Hopcroft Minimal DFA."""
     from .dfa import compile_to_dfa
-    dfa = compile_to_dfa(regex_str)
+    dfa = compile_to_dfa(regex_str, anchored=anchored)
     return minimize_dfa(dfa)
 
 
@@ -396,26 +396,131 @@ def are_isomorphic(dfa1: DFA, dfa2: DFA) -> bool:
     return True
 
 
+def prove_regex_equivalence(regex1: str, regex2: str) -> Dict[str, Any]:
+    """
+    Automated Theorem Prover for Regular Expression Equivalence with Witness Synthesis:
+      Constructs the Product Automaton M1 x M2 over active alphabet symbols
+      and executes BFS to synthesize lexicographically shortest counterexamples in:
+        1. L(r1) \\ L(r2) (witness that r1 accepts but r2 rejects)
+        2. L(r2) \\ L(r1) (witness that r2 accepts but r1 rejects)
+        3. L(r1) ∩ L(r2) (witness of shared language intersection)
+    Returns complete proof dictionary with relation verdicts and witnesses.
+    """
+    m1 = compile_to_minimal_dfa(regex1)
+    m2 = compile_to_minimal_dfa(regex2)
+    t1, t2 = m1.fast_table, m2.fast_table
+    acc1, acc2 = m1.is_accepting, m2.is_accepting
+
+    active_chars = sorted(list({c for s in m1.states.values() for c in s.transitions.keys()} |
+                               {c for s in m2.states.values() for c in s.transitions.keys()}))
+    if not active_chars:
+        active_chars = ["a"]
+
+    visited = set()
+    queue = deque([(m1.start_state_id, m2.start_state_id, "")])
+    visited.add((m1.start_state_id, m2.start_state_id))
+
+    witness_1_minus_2 = None
+    witness_2_minus_1 = None
+    witness_intersection = None
+
+    while queue:
+        s1, s2, word = queue.popleft()
+        a1 = acc1[s1] if s1 != -1 and s1 < len(acc1) else False
+        a2 = acc2[s2] if s2 != -1 and s2 < len(acc2) else False
+
+        if a1 and not a2 and witness_1_minus_2 is None:
+            witness_1_minus_2 = word
+        if not a1 and a2 and witness_2_minus_1 is None:
+            witness_2_minus_1 = word
+        if a1 and a2 and witness_intersection is None:
+            witness_intersection = word
+
+        if witness_1_minus_2 is not None and witness_2_minus_1 is not None and witness_intersection is not None:
+            break
+
+        for ch in active_chars:
+            code = ord(ch)
+            n1 = t1[s1][code] if s1 != -1 and s1 < len(t1) and code < 256 else -1
+            n2 = t2[s2][code] if s2 != -1 and s2 < len(t2) and code < 256 else -1
+            if n1 == -1 and n2 == -1:
+                continue
+            pair = (n1, n2)
+            if pair not in visited:
+                visited.add(pair)
+                queue.append((n1, n2, word + ch))
+
+    is_equiv = (witness_1_minus_2 is None and witness_2_minus_1 is None)
+    is_subset_1_of_2 = (witness_1_minus_2 is None)
+    is_subset_2_of_1 = (witness_2_minus_1 is None)
+    is_disjoint = (witness_intersection is None)
+
+    if is_equiv:
+        relation = "EQUIVALENT (L1 ≡ L2)"
+        proof_lines = [
+            f"The languages are EQUIVALENT: L('{regex1}') ≡ L('{regex2}').",
+            f"Both reduce to identical canonical minimal DFAs with {len(m1.states)} states.",
+            "Symmetric difference L(r1) ⊕ L(r2) = ∅ (No counterexamples exist)."
+        ]
+    elif is_subset_1_of_2 and not is_subset_2_of_1:
+        relation = "STRICT SUBSET (L1 ⊂ L2)"
+        w2_disp = "ε (empty string)" if witness_2_minus_1 == "" else f"'{witness_2_minus_1}'"
+        proof_lines = [
+            f"The languages are NOT EQUIVALENT: L('{regex1}') is a STRICT SUBSET of L('{regex2}'): L1 ⊂ L2.",
+            f"Every string in L1 is in L2, but L2 contains additional strings.",
+            f"Shortest counterexample in L2 \\ L1: {w2_disp}"
+        ]
+    elif not is_subset_1_of_2 and is_subset_2_of_1:
+        relation = "STRICT SUPERSET (L1 ⊃ L2)"
+        w1_disp = "ε (empty string)" if witness_1_minus_2 == "" else f"'{witness_1_minus_2}'"
+        proof_lines = [
+            f"The languages are NOT EQUIVALENT: L('{regex1}') is a STRICT SUPERSET of L('{regex2}'): L1 ⊃ L2.",
+            f"Every string in L2 is in L1, but L1 contains additional strings.",
+            f"Shortest counterexample in L1 \\ L2: {w1_disp}"
+        ]
+    elif is_disjoint:
+        relation = "DISJOINT (L1 ∩ L2 = ∅)"
+        w1_disp = "ε (empty string)" if witness_1_minus_2 == "" else f"'{witness_1_minus_2}'"
+        w2_disp = "ε (empty string)" if witness_2_minus_1 == "" else f"'{witness_2_minus_1}'"
+        proof_lines = [
+            f"The languages are NOT EQUIVALENT and completely DISJOINT: L1 ∩ L2 = ∅.",
+            f"Sample string in L1: {w1_disp}",
+            f"Sample string in L2: {w2_disp}"
+        ]
+    else:
+        relation = "OVERLAPPING (L1 ≉ L2)"
+        w1_disp = "ε (empty string)" if witness_1_minus_2 == "" else f"'{witness_1_minus_2}'"
+        w2_disp = "ε (empty string)" if witness_2_minus_1 == "" else f"'{witness_2_minus_1}'"
+        proof_lines = [
+            f"The languages OVERLAP but are NOT EQUIVALENT: L1 ≉ L2.",
+            f"Shortest counterexample in L1 \\ L2: {w1_disp}",
+            f"Shortest counterexample in L2 \\ L1: {w2_disp}",
+            f"Shared string in L1 ∩ L2: '{witness_intersection}'"
+        ]
+
+    explanation = "\n".join(proof_lines)
+
+    return {
+        "is_equivalent": is_equiv,
+        "is_subset_l1_of_l2": is_subset_1_of_2,
+        "is_subset_l2_of_l1": is_subset_2_of_1,
+        "is_disjoint": is_disjoint,
+        "relation": relation,
+        "explanation": explanation,
+        "witness_l1_minus_l2": witness_1_minus_2,
+        "witness_l2_minus_l1": witness_2_minus_1,
+        "witness_intersection": witness_intersection,
+        "m1_states": len(m1.states),
+        "m2_states": len(m2.states),
+        "states_explored": len(visited)
+    }
+
+
 def are_equivalent_regexes(regex1: str, regex2: str) -> Tuple[bool, str]:
     """
     Automated Theorem Prover for Regular Expression Equivalence:
       L(r1) == L(r2) iff MinimalDFA(r1) ≅ MinimalDFA(r2).
     Returns (verdict, explanation).
     """
-    m1 = compile_to_minimal_dfa(regex1)
-    m2 = compile_to_minimal_dfa(regex2)
-
-    is_equiv = are_isomorphic(m1, m2)
-
-    if is_equiv:
-        explanation = (
-            f"The languages are EQUIVALENT: L('{regex1}') ≡ L('{regex2}').\n"
-            f"Both reduce to an identical {len(m1.states)}-state canonical minimal DFA."
-        )
-    else:
-        explanation = (
-            f"The languages are NOT EQUIVALENT: L('{regex1}') ≢ L('{regex2}').\n"
-            f"Minimal DFA state counts: r1 has {len(m1.states)} states, r2 has {len(m2.states)} states."
-        )
-
-    return is_equiv, explanation
+    res = prove_regex_equivalence(regex1, regex2)
+    return res["is_equivalent"], res["explanation"]
