@@ -29,6 +29,7 @@ env/
 # Temporary & Archive files
 *.zip
 *.tar.gz
+*.svg
 scratch/
 scratch*
 
