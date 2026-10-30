@@ -315,18 +315,51 @@ class TestInvalidAndUnsupportedRegexes(unittest.TestCase):
             with self.assertRaises(Exception, msg=f"Pattern '{p}' should raise error"):
                 compile_regex(p)
 
-    def test_unsupported_operators_scope_enforcement(self):
-        unsupported = [
-            ("a{2}", "Repetition counts"),
-            ("{5}", "Repetition counts"),
-            ("^a", "Anchor '^'"),
-            ("a$", "Anchor '$'")
+    def test_unsupported_operators_and_quantifier_syntax(self):
+        # Invalid quantifier syntax or orphaned operators must be rejected with descriptive errors
+        invalid = [
+            ("{5}", "no preceding operand"),
+            ("a{5,2}", "must satisfy"),
+            ("a{", "unclosed quantifier"),
+            ("a}", "unmatched closing brace"),
+            ("a{abc}", "invalid quantifier"),
+            ("a{100}", "out of range"),
         ]
-        for p, token_desc in unsupported:
-            with self.assertRaises(Exception) as ctx:
+        for p, token_desc in invalid:
+            with self.assertRaises(Exception, msg=f"Pattern '{p}' ({token_desc}) should raise error"):
                 compile_regex(p)
-            self.assertTrue(any(w in str(ctx.exception).lower() for w in ["not supported", "scope limitation"]),
-                            f"Error message for '{p}' should indicate scope limitation")
+
+    def test_bounded_quantifiers_and_anchors(self):
+        # Verify bounded quantifiers {n}, {n,m}, {n,}, anchors, and hex escapes
+        nfa_exact = compile_regex("a{3}")
+        sim_exact = NFASimulator(nfa_exact)
+        self.assertTrue(sim_exact.simulate("aaa").is_accepted)
+        self.assertFalse(sim_exact.simulate("aa").is_accepted)
+        self.assertFalse(sim_exact.simulate("aaaa").is_accepted)
+
+        nfa_range = compile_regex("a{2,4}b")
+        sim_range = NFASimulator(nfa_range)
+        self.assertTrue(sim_range.simulate("aab").is_accepted)
+        self.assertTrue(sim_range.simulate("aaab").is_accepted)
+        self.assertTrue(sim_range.simulate("aaaab").is_accepted)
+        self.assertFalse(sim_range.simulate("ab").is_accepted)
+        self.assertFalse(sim_range.simulate("aaaaab").is_accepted)
+
+        nfa_atleast = compile_regex("a{2,}")
+        sim_atleast = NFASimulator(nfa_atleast)
+        self.assertTrue(sim_atleast.simulate("aa").is_accepted)
+        self.assertTrue(sim_atleast.simulate("aaaaa").is_accepted)
+        self.assertFalse(sim_atleast.simulate("a").is_accepted)
+
+        nfa_anchored = compile_regex("^abc$")
+        sim_anchored = NFASimulator(nfa_anchored)
+        self.assertTrue(sim_anchored.simulate("abc").is_accepted)
+        self.assertFalse(sim_anchored.simulate("abcd").is_accepted)
+
+        nfa_hex = compile_regex(r"[\x30-\x39]+")
+        sim_hex = NFASimulator(nfa_hex)
+        self.assertTrue(sim_hex.simulate("12345").is_accepted)
+        self.assertFalse(sim_hex.simulate("abc").is_accepted)
 
 
 class TestReDoSImmunity(unittest.TestCase):

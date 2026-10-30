@@ -7,7 +7,7 @@ from typing import List, Optional, Set, Tuple
 from enum import Enum, auto
 
 CONCAT_OP = '·'
-UNSUPPORTED_OPERATORS = {'{', '}', '^', '$'}
+UNSUPPORTED_OPERATORS: Set[str] = set()
 
 PRINTABLE_ASCII = frozenset(chr(i) for i in range(32, 127)) | {'\t', '\r', '\n'}
 DIGITS = frozenset("0123456789")
@@ -98,7 +98,15 @@ def _parse_character_class(regex_str: str, start_idx: int) -> Tuple[Token, int]:
             if i + 1 >= n:
                 raise ValueError(f"Syntax Error: Trailing backslash in character class at position {i}")
             esc = regex_str[i + 1]
-            if esc in SHORTHANDS:
+            if esc == 'x' and i + 3 < n:
+                try:
+                    code = int(regex_str[i + 2 : i + 4], 16)
+                    curr_char = chr(code)
+                    i += 4
+                except ValueError:
+                    curr_char = esc
+                    i += 2
+            elif esc in SHORTHANDS:
                 chars.update(SHORTHANDS[esc][0])
                 i += 2
                 continue
@@ -117,10 +125,19 @@ def _parse_character_class(regex_str: str, start_idx: int) -> Tuple[Token, int]:
                 if i + 1 >= n:
                     raise ValueError(f"Syntax Error: Trailing backslash in character class at position {i}")
                 esc2 = regex_str[i + 1]
-                if esc2 in SHORTHANDS:
+                if esc2 == 'x' and i + 3 < n:
+                    try:
+                        code2 = int(regex_str[i + 2 : i + 4], 16)
+                        end_char = chr(code2)
+                        i += 4
+                    except ValueError:
+                        end_char = esc2
+                        i += 2
+                elif esc2 in SHORTHANDS:
                     raise ValueError(f"Syntax Error: Shorthand escape '\\{esc2}' cannot be range boundary at position {i}")
-                end_char = esc2
-                i += 2
+                else:
+                    end_char = esc2
+                    i += 2
             else:
                 end_char = regex_str[i]
                 i += 1
@@ -147,27 +164,44 @@ def tokenize(regex_str: str) -> List[Token]:
     if not regex_str:
         return []
 
+    working = regex_str
+    if working.startswith('^'):
+        working = working[1:]
+    if working.endswith('$') and not working.endswith(r'\$'):
+        working = working[:-1]
+
+    if not working:
+        raise ValueError("Syntax Error: Expression contains only anchors with no pattern body")
+
     tokens: List[Token] = []
     i = 0
-    n = len(regex_str)
+    n = len(working)
     paren_depth = 0
 
     while i < n:
-        char = regex_str[i]
+        char = working[i]
 
         if char == '\\':
             if i + 1 < n:
-                escaped_char = regex_str[i + 1]
-                if escaped_char in SHORTHANDS:
-                    cset, disp = SHORTHANDS[escaped_char]
+                esc = working[i + 1]
+                if esc == 'x' and i + 3 < n:
+                    try:
+                        code = int(working[i + 2 : i + 4], 16)
+                        tokens.append(Token(TokenType.CHAR, chr(code), pos=i, escaped=True))
+                        i += 4
+                        continue
+                    except ValueError:
+                        pass
+                if esc in SHORTHANDS:
+                    cset, disp = SHORTHANDS[esc]
                     tokens.append(Token(TokenType.CHAR_CLASS, disp, pos=i, charset=cset))
                 else:
-                    tokens.append(Token(TokenType.CHAR, escaped_char, pos=i, escaped=True))
+                    tokens.append(Token(TokenType.CHAR, esc, pos=i, escaped=True))
                 i += 2
             else:
                 raise ValueError(f"Syntax Error: Trailing backslash at position {i}")
         elif char == '[':
-            tok, next_i = _parse_character_class(regex_str, i)
+            tok, next_i = _parse_character_class(working, i)
             tokens.append(tok)
             i = next_i
         elif char == '(':
@@ -195,12 +229,70 @@ def tokenize(regex_str: str) -> List[Token]:
         elif char == '.':
             tokens.append(Token(TokenType.ANY, '.', pos=i))
             i += 1
+        elif char == '{':
+            close_idx = working.find('}', i)
+            if close_idx == -1:
+                raise ValueError(f"Syntax Error: Unclosed quantifier '{{' at position {i}")
+            body = working[i + 1 : close_idx].strip()
+            parts = body.split(',')
+            if len(parts) > 2 or not parts[0].strip().isdigit():
+                raise ValueError(f"Syntax Error: Invalid quantifier '{{{body}}}' at position {i}")
+            min_val = int(parts[0].strip())
+            if min_val < 0 or min_val > 64:
+                raise ValueError(f"Syntax Error: Quantifier lower bound {min_val} out of range [0, 64]")
+            if len(parts) == 2:
+                p2 = parts[1].strip()
+                if p2 == '':
+                    max_val = None
+                elif p2.isdigit():
+                    max_val = int(p2)
+                    if max_val < min_val or max_val > 64:
+                        raise ValueError(f"Syntax Error: Quantifier upper bound {max_val} must satisfy {min_val} <= m <= 64")
+                else:
+                    raise ValueError(f"Syntax Error: Invalid quantifier '{{{body}}}' at position {i}")
+            else:
+                max_val = min_val
+
+            if not tokens:
+                raise ValueError(f"Syntax Error: Quantifier '{{{body}}}' at position {i} has no preceding operand")
+
+            prev_tok = tokens[-1]
+            if prev_tok.type in {TokenType.STAR, TokenType.PLUS, TokenType.OPTIONAL, TokenType.UNION, TokenType.LPAREN}:
+                raise ValueError(f"Syntax Error: Quantifier '{{{body}}}' cannot follow '{prev_tok.value}'")
+
+            if prev_tok.type == TokenType.RPAREN:
+                depth = 1
+                j = len(tokens) - 2
+                while j >= 0 and depth > 0:
+                    if tokens[j].type == TokenType.RPAREN:
+                        depth += 1
+                    elif tokens[j].type == TokenType.LPAREN:
+                        depth -= 1
+                    j -= 1
+                atom = tokens[j + 1 :]
+                del tokens[j + 1 :]
+            else:
+                atom = [tokens.pop()]
+
+            wrap = len(atom) > 1 and not (atom[0].type == TokenType.LPAREN and atom[-1].type == TokenType.RPAREN)
+            wrapped_atom = [Token(TokenType.LPAREN, '(', i)] + atom + [Token(TokenType.RPAREN, ')', i)] if wrap else atom
+
+            for _ in range(min_val):
+                tokens.extend([Token(t.type, t.value, pos=t.pos, escaped=t.escaped, charset=t.charset) for t in wrapped_atom])
+
+            if max_val is None:
+                tokens.extend([Token(TokenType.LPAREN, '(', i)] + wrapped_atom + [Token(TokenType.RPAREN, ')', i), Token(TokenType.STAR, '*', i)])
+            else:
+                opt_count = max_val - min_val
+                for _ in range(opt_count):
+                    tokens.extend([Token(TokenType.LPAREN, '(', i)] + wrapped_atom + [Token(TokenType.RPAREN, ')', i), Token(TokenType.OPTIONAL, '?', i)])
+
+            i = close_idx + 1
+        elif char == '}':
+            raise ValueError(f"Syntax Error: Unmatched closing brace '}}' at position {i}")
         elif char in UNSUPPORTED_OPERATORS:
             raise ValueError(
-                f"Scope Limitation: Operator '{char}' at position {i} is not supported "
-                f"(repetition counts {{n,m}} and anchors ^, $ are scheduled for future milestones). "
-                f"Supported: literals, wildcard '.', character classes '[...]', shorthand escapes (\\d, \\w, \\s), "
-                f"concatenation, union '|', Kleene star '*', positive closure '+', optional '?', grouping '()'."
+                f"Scope Limitation: Operator '{char}' at position {i} is not supported."
             )
         else:
             tokens.append(Token(TokenType.CHAR, char, pos=i))
